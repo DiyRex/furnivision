@@ -9,6 +9,7 @@ import { DesignProvider, useDesign } from '../../../lib/DesignContext';
 import Canvas2D from '../../../components/Canvas2D';
 import Scene3D from '../../../components/Scene3D';
 import FurnitureControls from '../../../components/FurnitureControls';
+import SelectedFurniturePanel from '../../../components/SelectedFurniturePanel';
 
 export default function Dashboard() {
   const [view, setView] = useState<'2d' | '3d'>('2d');
@@ -19,7 +20,7 @@ export default function Dashboard() {
       <div className="flex h-screen flex-col">
         {/* Navbar */}
         <div className="bg-white shadow-sm h-16 flex items-center px-6">
-          <h1 className="text-xl font-bold text-indigo-600">Furniture Design Studio</h1>
+          <h1 className="text-xl font-bold text-indigo-600">FurniVision</h1>
           <div className="ml-auto flex items-center space-x-4">
             <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
               <span className="text-indigo-800 font-medium">DS</span>
@@ -70,7 +71,7 @@ export default function Dashboard() {
               {activeTab === 'furniture' && <FurnitureSelector />}
               {activeTab === 'colors' && <ColorPicker />}
             </div>
-            
+            <SelectedFurniturePanel />
             <div className="p-4 border-t border-gray-200">
               <SaveDesignButton />
             </div>
