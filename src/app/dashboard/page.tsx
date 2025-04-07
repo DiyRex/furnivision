@@ -8,6 +8,7 @@ import FurnitureSelector from '../../../components/FurnitureSelector';
 import { DesignProvider, useDesign } from '../../../lib/DesignContext';
 import Canvas2D from '../../../components/Canvas2D';
 import Scene3D from '../../../components/Scene3D';
+import FurnitureControls from '../../../components/FurnitureControls';
 
 export default function Dashboard() {
   const [view, setView] = useState<'2d' | '3d'>('2d');

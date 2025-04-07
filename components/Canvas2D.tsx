@@ -4,6 +4,7 @@
 import { useRef, useEffect } from 'react';
 import { useDesign } from '../lib/DesignContext';
 import { Furniture } from '../lib/types';
+import FurnitureControls from './FurnitureControls';
 
 export default function Canvas2D() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -153,10 +154,13 @@ export default function Canvas2D() {
   }, []);
   
   return (
-    <canvas
-      ref={canvasRef}
-      onClick={handleCanvasClick}
-      className="w-full h-full"
-    />
+    <div className="relative w-full h-full">
+      <canvas
+        ref={canvasRef}
+        onClick={handleCanvasClick}
+        className="w-full h-full"
+      />
+      <FurnitureControls />
+    </div>
   );
 }
