@@ -4,26 +4,47 @@ import React from 'react'
 import { AppProvider } from '@toolpad/core/AppProvider'
 import { SignInPage, type AuthProvider } from '@toolpad/core/SignInPage'
 import { useTheme } from '@mui/material/styles'
+import { useSignInWithEmailAndPassword } from 'react-firebase-hooks/auth'
+import { auth } from '@/app/services/firebase/config'
+import { useRouter } from 'next/navigation'
 
 const AuthPage = () => {
   const theme = useTheme()
-  
-  // Add providers configuration
-  const providers = [{ 
-    id: 'credentials', 
-    name: 'Credentials' 
-  }]
 
-  // Implement proper signIn function
-  const signin =  () => {
-    // Add your authentication logic here
-    console.log('Signing in with:')
-    
-    // Example: Validate credentials
-    // const response = await fetch('/api/auth', { 
-    //   method: 'POST',
-    //   body: JSON.stringify({ email, password })
-    // })
+  const [signInWithEmailAndPassword] = useSignInWithEmailAndPassword(auth)
+  const router = useRouter()
+
+  const signIn = async (
+    provider: AuthProvider,
+    formData?: FormData,
+    _callbackUrl?: string
+  ) => {
+    const email = formData?.get('email')?.toString() || ''
+    const password = formData?.get('password')?.toString() || ''
+
+    console.log('Email:', email)
+    console.log('Password:', password)
+
+    try {
+      const result = await signInWithEmailAndPassword(email, password)
+      console.log(result)
+      if (!result?.user) {
+        return {
+          error: 'Invalid credentials',
+        }
+      }
+
+      router.push('/dashboard')
+      return {
+        redirectUrl: '/dashboard',
+      }
+
+    } catch (err: any) {
+      console.error('Firebase login error:', err)
+      return {
+        error: err?.message || 'Authentication failed',
+      }
+    }
   }
 
   const BRANDING = {
@@ -34,25 +55,27 @@ const AuthPage = () => {
         style={{ height: 24 }}
       />
     ),
-    title: 'MUI',
+    title: 'FurniVision',
   }
+
+  const providers = [{ id: 'credentials', name: 'Credentials' }]
 
   return (
     <AppProvider branding={BRANDING} theme={theme}>
       <SignInPage
-        signIn={signin}
-        providers={providers}  // Add providers prop
-        slotProps={{ 
-          emailField: { 
-            autoFocus: false,
-            label: 'Email',  // Customize labels if needed
+        signIn={signIn}
+        providers={providers}
+        slotProps={{
+          emailField: {
+            autoFocus: true,
+            label: 'Email',
           },
           passwordField: {
             label: 'Password',
           },
-          form: { 
-            noValidate: true 
-          }
+          form: {
+            noValidate: true,
+          },
         }}
       />
     </AppProvider>
