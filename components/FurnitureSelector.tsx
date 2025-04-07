@@ -1,7 +1,8 @@
-// components/FurnitureSelector.tsx
+// components/FurnitureSelector.tsx (update)
 'use client';
 
 import { useState } from 'react';
+import { useDesign } from '../lib/DesignContext';
 
 // Sample furniture data
 const furnitureItems = [
@@ -14,16 +15,12 @@ const furnitureItems = [
 ];
 
 export default function FurnitureSelector() {
+  const { addFurniture } = useDesign();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   
   const filteredItems = selectedType 
     ? furnitureItems.filter(item => item.type === selectedType) 
     : furnitureItems;
-
-  const handleAddFurniture = (item: typeof furnitureItems[0]) => {
-    // This will be connected to state management in a future step
-    console.log('Adding furniture:', item);
-  };
 
   return (
     <div className="space-y-6">
@@ -71,7 +68,7 @@ export default function FurnitureSelector() {
           <div 
             key={item.id} 
             className="p-3 border rounded-md hover:bg-gray-50 cursor-pointer"
-            onClick={() => handleAddFurniture(item)}
+            onClick={() => addFurniture(item)}
           >
             <div className="flex items-center">
               <div 

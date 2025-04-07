@@ -1,6 +1,7 @@
-// components/ColorPicker.tsx
+// components/ColorPicker.tsx (update)
 'use client';
 
+import { useDesign } from '../lib/DesignContext';
 import { useState } from 'react';
 
 const colorPalettes = [
@@ -11,19 +12,17 @@ const colorPalettes = [
 ];
 
 export default function ColorPicker() {
-  const [wallColor, setWallColor] = useState('#F5F5F5');
-  const [floorColor, setFloorColor] = useState('#D2B48C');
+  const { room, selectedFurniture, updateRoom, updateFurniture } = useDesign();
   const [selectedElement, setSelectedElement] = useState('wall'); // 'wall', 'floor', or 'furniture'
 
   const handleColorChange = (color: string) => {
     if (selectedElement === 'wall') {
-      setWallColor(color);
+      updateRoom({ wallColor: color });
     } else if (selectedElement === 'floor') {
-      setFloorColor(color);
+      updateRoom({ floorColor: color });
+    } else if (selectedElement === 'furniture' && selectedFurniture) {
+      updateFurniture({ ...selectedFurniture, color });
     }
-    // We'll add furniture color handling in a future step
-    
-    console.log('Color updated:', { element: selectedElement, color });
   };
 
   return (
@@ -54,23 +53,49 @@ export default function ColorPicker() {
         >
           Floor
         </button>
+        <button
+          className={`px-3 py-2 rounded-md text-sm font-medium ${
+            selectedElement === 'furniture' 
+              ? 'bg-indigo-100 text-indigo-700' 
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+          onClick={() => setSelectedElement('furniture')}
+          disabled={!selectedFurniture}
+        >
+          Furniture
+        </button>
       </div>
       
       <div className="space-y-4">
         <div>
           <h4 className="text-sm font-medium text-gray-700">
-            {selectedElement === 'wall' ? 'Wall Color' : 'Floor Color'}
+            {selectedElement === 'wall' ? 'Wall Color' : 
+             selectedElement === 'floor' ? 'Floor Color' : 
+             'Furniture Color'}
           </h4>
           <div className="mt-2 flex items-center">
             <div 
               className="w-8 h-8 rounded-full border border-gray-300"
-              style={{ backgroundColor: selectedElement === 'wall' ? wallColor : floorColor }}
+              style={{ 
+                backgroundColor: selectedElement === 'wall' 
+                  ? room.wallColor 
+                  : selectedElement === 'floor'
+                    ? room.floorColor
+                    : selectedFurniture?.color || '#cccccc'
+              }}
             ></div>
             <input
               type="color"
-              value={selectedElement === 'wall' ? wallColor : floorColor}
+              value={
+                selectedElement === 'wall' 
+                  ? room.wallColor 
+                  : selectedElement === 'floor'
+                    ? room.floorColor
+                    : selectedFurniture?.color || '#cccccc'
+              }
               onChange={(e) => handleColorChange(e.target.value)}
               className="ml-2"
+              disabled={selectedElement === 'furniture' && !selectedFurniture}
             />
           </div>
         </div>
@@ -89,6 +114,7 @@ export default function ColorPicker() {
                   className="w-8 h-8 rounded-md border border-gray-300 hover:opacity-80 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   style={{ backgroundColor: color }}
                   onClick={() => handleColorChange(color)}
+                  disabled={selectedElement === 'furniture' && !selectedFurniture}
                 ></button>
               ))}
             </div>

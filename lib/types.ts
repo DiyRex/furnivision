@@ -1,0 +1,27 @@
+// lib/types.ts
+export interface Room {
+    width: number;
+    length: number;
+    height: number;
+    shape: 'rectangular' | 'l-shaped';
+    wallColor: string;
+    floorColor: string;
+  }
+  
+  export interface Position {
+    x: number;
+    y: number;
+    z: number;
+  }
+  
+  export interface Furniture {
+    id: number;
+    type: string;
+    name: string;
+    width: number;
+    depth: number;
+    height: number;
+    color: string;
+    position?: Position;
+    rotation?: number;
+  }
