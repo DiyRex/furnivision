@@ -1,4 +1,4 @@
-// components/RoomSettings.tsx (update)
+// components/RoomSettings.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,19 +10,24 @@ export default function RoomSettings() {
   const [roomLength, setRoomLength] = useState(room.length.toString());
   const [roomHeight, setRoomHeight] = useState(room.height.toString());
   
+  // Update local state when room data changes
   useEffect(() => {
-    // Update local state when room data changes
     setRoomWidth(room.width.toString());
     setRoomLength(room.length.toString());
     setRoomHeight(room.height.toString());
   }, [room]);
   
-  const handleDimensionChange = () => {
-    updateRoom({
-      width: parseFloat(roomWidth) || 5,
-      length: parseFloat(roomLength) || 5,
-      height: parseFloat(roomHeight) || 3
-    });
+  // Immediately update room when input values change
+  const handleDimensionChange = (field: string, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    
+    if (field === 'width') {
+      updateRoom({ width: numValue > 0 ? numValue : 1 });
+    } else if (field === 'length') {
+      updateRoom({ length: numValue > 0 ? numValue : 1 });
+    } else if (field === 'height') {
+      updateRoom({ height: numValue > 0 ? numValue : 1 });
+    }
   };
 
   return (
@@ -42,8 +47,11 @@ export default function RoomSettings() {
               max="20"
               step="0.1"
               value={roomWidth}
-              onChange={(e) => setRoomWidth(e.target.value)}
-              onBlur={handleDimensionChange}
+              onChange={(e) => {
+                setRoomWidth(e.target.value);
+                // Update room immediately on change
+                handleDimensionChange('width', e.target.value);
+              }}
               className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
             />
           </div>
@@ -61,8 +69,11 @@ export default function RoomSettings() {
               max="20"
               step="0.1"
               value={roomLength}
-              onChange={(e) => setRoomLength(e.target.value)}
-              onBlur={handleDimensionChange}
+              onChange={(e) => {
+                setRoomLength(e.target.value);
+                // Update room immediately on change
+                handleDimensionChange('length', e.target.value);
+              }}
               className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
             />
           </div>
@@ -80,8 +91,11 @@ export default function RoomSettings() {
               max="5"
               step="0.1"
               value={roomHeight}
-              onChange={(e) => setRoomHeight(e.target.value)}
-              onBlur={handleDimensionChange}
+              onChange={(e) => {
+                setRoomHeight(e.target.value);
+                // Update room immediately on change
+                handleDimensionChange('height', e.target.value);
+              }}
               className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
             />
           </div>
@@ -111,23 +125,6 @@ export default function RoomSettings() {
             <div className="w-4 h-4 bg-gray-200"></div>
           </div>
           <span className="ml-2 text-sm">L-Shaped</span>
-        </button>
-      </div>
-      
-      <div className="pt-4">
-        <button
-          onClick={() => updateRoom({
-            width: 5,
-            length: 5,
-            height: 3,
-            shape: 'rectangular'
-          })}
-          className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Reset to Default
         </button>
       </div>
     </div>

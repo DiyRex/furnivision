@@ -1,4 +1,4 @@
-// components/FurnitureSelector.tsx (update)
+// components/FurnitureSelector.tsx
 'use client';
 
 import { useState } from 'react';
@@ -21,6 +21,11 @@ export default function FurnitureSelector() {
   const filteredItems = selectedType 
     ? furnitureItems.filter(item => item.type === selectedType) 
     : furnitureItems;
+
+  const handleAddFurniture = (item: typeof furnitureItems[0]) => {
+    // Let the addFurniture function in DesignContext handle positioning
+    addFurniture(item);
+  };
 
   return (
     <div className="space-y-6">
@@ -68,7 +73,7 @@ export default function FurnitureSelector() {
           <div 
             key={item.id} 
             className="p-3 border rounded-md hover:bg-gray-50 cursor-pointer"
-            onClick={() => addFurniture(item)}
+            onClick={() => handleAddFurniture(item)}
           >
             <div className="flex items-center">
               <div 

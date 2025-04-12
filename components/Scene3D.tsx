@@ -8,7 +8,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 export default function Scene3D() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { room, furniture, selectedFurniture, selectFurniture } = useDesign();
+  const { room, furniture, selectedFurniture, selectFurniture, backgroundImages } = useDesign();
   
   // Set up and render the 3D scene
   useEffect(() => {
@@ -48,23 +48,44 @@ export default function Scene3D() {
     directionalLight.castShadow = true;
     scene.add(directionalLight);
     
-    // Create floor
-    const floorGeometry = new THREE.PlaneGeometry(room.width, room.length);
+    // Find active background if any
+    const activeBackground = room.activeBackgroundId 
+      ? backgroundImages.find(bg => bg.id === room.activeBackgroundId) 
+      : null;
+    
+    // Create floor (always use floor color)
     const floorMaterial = new THREE.MeshStandardMaterial({
       color: room.floorColor,
       side: THREE.DoubleSide
     });
+    
+    const floorGeometry = new THREE.PlaneGeometry(room.width, room.length);
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(room.width / 2, 0, room.length / 2);
     floor.receiveShadow = true;
     scene.add(floor);
     
-    // Create walls
-    const wallMaterial = new THREE.MeshStandardMaterial({
-      color: room.wallColor,
-      side: THREE.DoubleSide
-    });
+    // Create walls (with background image if available)
+    let wallMaterial;
+    
+    if (activeBackground) {
+      // Create texture from image
+      const textureLoader = new THREE.TextureLoader();
+      const texture = textureLoader.load(activeBackground.url);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      
+      wallMaterial = new THREE.MeshStandardMaterial({
+        map: texture,
+        side: THREE.DoubleSide
+      });
+    } else {
+      wallMaterial = new THREE.MeshStandardMaterial({
+        color: room.wallColor,
+        side: THREE.DoubleSide
+      });
+    }
     
     // Back wall
     const backWallGeometry = new THREE.PlaneGeometry(room.width, room.height);
@@ -103,11 +124,13 @@ export default function Scene3D() {
       furnitureObjects.set(item.id, mesh);
     });
     
-    // Set up raycaster for picking
+    // Set up raycaster for picking and dragging
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
+    let isDragging = false;
+    let draggedObject: THREE.Mesh | null = null;
     
-    const onMouseClick = (event: MouseEvent) => {
+    const onMouseDown = (event: MouseEvent) => {
       // Calculate mouse position in normalized device coordinates
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -126,6 +149,10 @@ export default function Scene3D() {
         if (furnitureId !== undefined) {
           const clickedFurniture = furniture.find(item => item.id === furnitureId);
           selectFurniture(clickedFurniture || null);
+          
+          // Start dragging
+          isDragging = true;
+          draggedObject = pickedObject as THREE.Mesh;
         } else {
           selectFurniture(null);
         }
@@ -134,7 +161,57 @@ export default function Scene3D() {
       }
     };
     
-    renderer.domElement.addEventListener('click', onMouseClick);
+    const onMouseMove = (event: MouseEvent) => {
+      if (!isDragging || !draggedObject) return;
+      
+      // Calculate mouse position in normalized device coordinates
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      // Update the picking ray with the camera and mouse position
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Find intersection with the floor
+      const intersects = raycaster.intersectObject(floor);
+      
+      if (intersects.length > 0) {
+        const intersectionPoint = intersects[0].point;
+        
+        // Update object position (maintaining y-position/height)
+        draggedObject.position.x = intersectionPoint.x;
+        draggedObject.position.z = intersectionPoint.z;
+        
+        // Find and update the furniture item in the global state
+        const furnitureId = draggedObject.userData.furnitureId;
+        const item = furniture.find(item => item.id === furnitureId);
+        
+        if (item && item.position) {
+          // Create a copy of the furniture item to avoid direct state mutation
+          const updatedFurniture = { 
+            ...item, 
+            position: { 
+              ...item.position, 
+              x: intersectionPoint.x, 
+              z: intersectionPoint.z 
+            } 
+          };
+          
+          // This would update the global state (needs implementation in context)
+          // updateFurniturePosition(updatedFurniture);
+        }
+      }
+    };
+    
+    const onMouseUp = () => {
+      isDragging = false;
+      draggedObject = null;
+    };
+    
+    renderer.domElement.addEventListener('mousedown', onMouseDown);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('mouseup', onMouseUp);
+    renderer.domElement.addEventListener('mouseleave', onMouseUp);
     
     // Animation loop
     const animate = () => {
@@ -162,7 +239,10 @@ export default function Scene3D() {
         containerRef.current.removeChild(renderer.domElement);
       }
       
-      renderer.domElement.removeEventListener('click', onMouseClick);
+      renderer.domElement.removeEventListener('mousedown', onMouseDown);
+      renderer.domElement.removeEventListener('mousemove', onMouseMove);
+      renderer.domElement.removeEventListener('mouseup', onMouseUp);
+      renderer.domElement.removeEventListener('mouseleave', onMouseUp);
       window.removeEventListener('resize', handleResize);
       
       // Dispose of geometries and materials
@@ -180,7 +260,7 @@ export default function Scene3D() {
       
       renderer.dispose();
     };
-  }, [room, furniture, selectedFurniture, selectFurniture]);
+  }, [room, furniture, selectedFurniture, selectFurniture, backgroundImages]);
   
   return <div ref={containerRef} className="w-full h-full"></div>;
 }

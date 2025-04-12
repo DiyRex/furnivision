@@ -34,3 +34,19 @@ export interface Design {
   furniture: Furniture[];
   thumbnail?: string; // We could add thumbnails later
 }
+
+export interface BackgroundImage {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export interface Room {
+  width: number;
+  length: number;
+  height: number;
+  shape: 'rectangular' | 'l-shaped';
+  wallColor: string;
+  floorColor: string;
+  activeBackgroundId?: string | null; // ID of the active background image
+}
