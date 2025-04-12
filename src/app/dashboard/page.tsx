@@ -1,19 +1,33 @@
 // app/dashboard/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import RoomSettings from '../../../components/RoomSettings';
 import ColorPicker from '../../../components/ColorPicker';
 import FurnitureSelector from '../../../components/FurnitureSelector';
 import { DesignProvider, useDesign } from '../../../lib/DesignContext';
-import Canvas2D from '../../../components/Canvas2D';
+import Canvas2D, { Canvas2DHandle } from '../../../components/Canvas2D';
 import Scene3D from '../../../components/Scene3D';
 import FurnitureControls from '../../../components/FurnitureControls';
 import SelectedFurniturePanel from '../../../components/SelectedFurniturePanel';
+import SaveDesignModal from '../../../components/SaveDesignModal';
+import DesignGallery from '../../../components/DesignGallery';
 
 export default function Dashboard() {
   const [view, setView] = useState<'2d' | '3d'>('2d');
   const [activeTab, setActiveTab] = useState('room');
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const canvas2DRef = useRef<Canvas2DHandle>(null);
+
+  const captureScreenshot = () => {
+    // If we're in 2D view, capture from Canvas2D
+    if (view === '2d' && canvas2DRef.current) {
+      return canvas2DRef.current.captureImage();
+    }
+    
+    // For 3D view, return null for now
+    return null;
+  };
 
   return (
     <DesignProvider>
@@ -21,6 +35,18 @@ export default function Dashboard() {
         {/* Navbar */}
         <div className="bg-white shadow-sm h-16 flex items-center px-6">
           <h1 className="text-xl font-bold text-indigo-600">FurniVision</h1>
+          <div className="ml-8 flex space-x-4">
+            <button
+              onClick={() => setActiveTab('gallery')}
+              className={`px-3 py-2 text-sm font-medium rounded-md ${
+                activeTab === 'gallery' 
+                  ? 'bg-indigo-100 text-indigo-700' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Gallery
+            </button>
+          </div>
           <div className="ml-auto flex items-center space-x-4">
             <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
               <span className="text-indigo-800 font-medium">DS</span>
@@ -67,13 +93,22 @@ export default function Dashboard() {
             </div>
             
             <div className="flex-1 overflow-y-auto p-4">
+              {activeTab === 'gallery' && <DesignGallery />}
               {activeTab === 'room' && <RoomSettings />}
               {activeTab === 'furniture' && <FurnitureSelector />}
               {activeTab === 'colors' && <ColorPicker />}
             </div>
-            <SelectedFurniturePanel />
+            
+            {/* Only show furniture panel when not in gallery view */}
+            {activeTab !== 'gallery' && <SelectedFurniturePanel />}
+            
             <div className="p-4 border-t border-gray-200">
-              <SaveDesignButton />
+              <button
+                onClick={() => setIsSaveModalOpen(true)}
+                className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Save Design
+              </button>
             </div>
           </div>
           
@@ -103,30 +138,20 @@ export default function Dashboard() {
             
             <div className="bg-white rounded-lg shadow-sm h-full">
               {view === '2d' ? (
-                <Canvas2D />
+                <Canvas2D ref={canvas2DRef} />
               ) : (
-                <div className="h-full flex items-center justify-center">
-                  <Scene3D />
-                </div>
+                <Scene3D />
               )}
             </div>
           </div>
         </div>
+        
+        <SaveDesignModal
+          isOpen={isSaveModalOpen}
+          onClose={() => setIsSaveModalOpen(false)}
+          captureScreenshot={captureScreenshot}
+        />
       </div>
     </DesignProvider>
-  );
-}
-
-// Simple component to access the context for the save button
-function SaveDesignButton() {
-  const { saveDesign } = useDesign();
-  
-  return (
-    <button
-      onClick={saveDesign}
-      className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-    >
-      Save Design
-    </button>
   );
 }

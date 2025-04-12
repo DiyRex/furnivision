@@ -25,3 +25,12 @@ export interface Room {
     position?: Position;
     rotation?: number;
   }
+
+export interface Design {
+  id: string;
+  name: string;
+  timestamp: string;
+  room: Room;
+  furniture: Furniture[];
+  thumbnail?: string; // We could add thumbnails later
+}

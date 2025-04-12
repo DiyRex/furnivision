@@ -1,8 +1,8 @@
 // lib/DesignContext.tsx
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
-import { Room, Furniture } from './types';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { Room, Furniture, Design } from './types';
 
 interface DesignContextType {
   room: Room;
@@ -13,7 +13,9 @@ interface DesignContextType {
   updateFurniture: (furniture: Furniture) => void;
   removeFurniture: (id: number) => void;
   selectFurniture: (furniture: Furniture | null) => void;
-  saveDesign: () => void;
+  saveDesign: (name: string, thumbnail?: string | null) => void;
+  loadDesign: (design: Design) => void;
+  deleteDesign: (id: string) => void;
 }
 
 const DesignContext = createContext<DesignContextType | undefined>(undefined);
@@ -27,6 +29,7 @@ export function DesignProvider({ children }: { children: ReactNode }) {
     wallColor: '#F5F5F5',
     floorColor: '#D2B48C'
   });
+
   
   const [furniture, setFurniture] = useState<Furniture[]>([]);
   const [selectedFurniture, setSelectedFurniture] = useState<Furniture | null>(null);
@@ -71,17 +74,57 @@ export function DesignProvider({ children }: { children: ReactNode }) {
     setSelectedFurniture(item);
   };
   
-  const saveDesign = () => {
-    const designData = {
+  const saveDesign = (name: string, thumbnail: string | null = null) => {
+    const design: Design = {
+      id: crypto.randomUUID(),
+      name,
+      timestamp: new Date().toISOString(),
       room,
       furniture,
-      timestamp: new Date().toISOString()
     };
+
+  // Only add thumbnail if it's a non-null string
+  if (thumbnail) {
+    design.thumbnail = thumbnail;
+  }
+  
+  // Get existing designs
+  const savedDesignsJson = localStorage.getItem('savedDesigns');
+  let savedDesigns: Design[] = [];
+  
+  if (savedDesignsJson) {
+    try {
+      savedDesigns = JSON.parse(savedDesignsJson);
+    } catch (error) {
+      console.error('Error parsing saved designs:', error);
+    }
+  }
+  
+  // Add new design
+  savedDesigns.push(design);
+  
+  // Save updated list
+  localStorage.setItem('savedDesigns', JSON.stringify(savedDesigns));
+  alert('Design saved successfully!');
+  };
+
+  const loadDesign = (design: Design) => {
+    setRoom(design.room);
+    setFurniture(design.furniture);
+    setSelectedFurniture(null);
+  };
+
+  const deleteDesign = (id: string) => {
+    const savedDesignsJson = localStorage.getItem('savedDesigns');
+    if (!savedDesignsJson) return;
     
-    // In a real app, this would likely be an API call
-    localStorage.setItem('savedDesign', JSON.stringify(designData));
-    
-    alert('Design saved successfully!');
+    try {
+      const savedDesigns: Design[] = JSON.parse(savedDesignsJson);
+      const updatedDesigns = savedDesigns.filter(design => design.id !== id);
+      localStorage.setItem('savedDesigns', JSON.stringify(updatedDesigns));
+    } catch (error) {
+      console.error('Error deleting design:', error);
+    }
   };
   
   return (
@@ -95,7 +138,9 @@ export function DesignProvider({ children }: { children: ReactNode }) {
         updateFurniture,
         removeFurniture,
         selectFurniture,
-        saveDesign
+        saveDesign,
+        loadDesign,
+        deleteDesign
       }}
     >
       {children}

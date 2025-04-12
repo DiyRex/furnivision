@@ -1,14 +1,27 @@
 // components/Canvas2D.tsx
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useDesign } from '../lib/DesignContext';
 import { Furniture } from '../lib/types';
 import FurnitureControls from './FurnitureControls';
 
-export default function Canvas2D() {
+// Define the imperative handle type
+export interface Canvas2DHandle {
+  captureImage: () => string | null;
+}
+
+const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { room, furniture, selectedFurniture, selectFurniture } = useDesign();
+  
+  // Expose the captureImage method to parent components
+  useImperativeHandle(ref, () => ({
+    captureImage: () => {
+      if (!canvasRef.current) return null;
+      return canvasRef.current.toDataURL('image/png');
+    }
+  }));
   
   // Scale factor (pixels per meter)
   const scale = 50;
@@ -163,4 +176,8 @@ export default function Canvas2D() {
       <FurnitureControls />
     </div>
   );
-}
+});
+
+Canvas2D.displayName = 'Canvas2D';
+
+export default Canvas2D;
