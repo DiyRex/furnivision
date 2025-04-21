@@ -90,54 +90,54 @@ export function DesignProvider({ children }: { children: ReactNode }) {
     setRoom({ ...room, activeBackgroundId: id });
   };
 
-  // In lib/DesignContext.tsx, modify the updateRoom function:
-
   const updateRoom = (newRoomData: Partial<Room>) => {
     // Immediately update the room with new data
-    setRoom((prev) => ({ ...prev, ...newRoomData }));
-
+    setRoom(prev => ({ ...prev, ...newRoomData }));
+    
+    // Only check for significant changes if dimensions or shape are changing
+    const hasDimensionalChanges = 
+      newRoomData.width !== undefined || 
+      newRoomData.length !== undefined || 
+      newRoomData.height !== undefined ||
+      newRoomData.shape !== undefined;
+    
+    // Skip this check for color changes
+    if (!hasDimensionalChanges) {
+      return;
+    }
+    
     // If dimensions are changed significantly, handle furniture positioning
-    const significantChange =
+    const significantChange = 
       (newRoomData.width && Math.abs(newRoomData.width - room.width) > 1) ||
       (newRoomData.length && Math.abs(newRoomData.length - room.length) > 1) ||
-      newRoomData.shape !== room.shape;
-
+      (newRoomData.shape !== undefined && newRoomData.shape !== room.shape);
+    
     if (significantChange && furniture.length > 0) {
       // Either reposition furniture or clear it
-      if (
-        confirm(
-          "Changing room dimensions significantly. Would you like to keep furniture and reposition it?"
-        )
-      ) {
+      if (confirm('Changing room dimensions significantly. Would you like to keep furniture and reposition it?')) {
         // Reposition furniture to fit in new room
-        const updatedFurniture = furniture.map((item) => {
+        const updatedFurniture = furniture.map(item => {
           if (!item.position) return item;
-
+          
           // Get new room dimensions (using new or current values)
           const newWidth = newRoomData.width || room.width;
           const newLength = newRoomData.length || room.length;
-
+          
           // Calculate scaling factors
           const widthRatio = newWidth / room.width;
           const lengthRatio = newLength / room.length;
-
+          
           // Scale position proportionally
           return {
             ...item,
             position: {
-              x: Math.min(
-                newWidth - item.width / 2,
-                Math.max(item.width / 2, item.position.x * widthRatio)
-              ),
+              x: Math.min(newWidth - item.width/2, Math.max(item.width/2, item.position.x * widthRatio)),
               y: item.position.y,
-              z: Math.min(
-                newLength - item.depth / 2,
-                Math.max(item.depth / 2, item.position.z * lengthRatio)
-              ),
-            },
+              z: Math.min(newLength - item.depth/2, Math.max(item.depth/2, item.position.z * lengthRatio))
+            }
           };
         });
-
+        
         setFurniture(updatedFurniture);
       } else {
         // Clear furniture

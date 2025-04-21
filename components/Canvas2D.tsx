@@ -145,10 +145,14 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
     };
 
     const drawSolidColorRoom = () => {
+      // Make sure we use the correct wall color from room state, defaulting to a color if undefined
+      const wallColor = room.wallColor || "#F5F5F5";
+      const floorColor = room.floorColor || "#D2B48C";
+      
       // Draw wall
-      ctx.fillStyle = room.wallColor;
+      ctx.fillStyle = wallColor;
       ctx.fillRect(offsetX, offsetY, room.width * scale, room.height * scale);
-
+    
       // Draw wall border
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 3;
@@ -158,15 +162,15 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
         room.width * scale,
         room.height * scale
       );
-
+    
       // Draw floor line
-      ctx.strokeStyle = room.floorColor;
+      ctx.strokeStyle = floorColor;
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(offsetX, offsetY + room.height * scale);
       ctx.lineTo(offsetX + room.width * scale, offsetY + room.height * scale);
       ctx.stroke();
-
+    
       // Render furniture immediately for solid color background
       renderFurniture();
     };
