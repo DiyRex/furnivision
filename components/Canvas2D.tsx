@@ -423,7 +423,10 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
         onMouseLeave={handleMouseUp}
         className="w-full h-full"
       />
-      <FurnitureControls />
+      <div className="absolute bottom-20 left-4 bg-slate-500 rounded shadow-lg p-4 z-10">
+        <FurnitureControls />
+      </div>
+
       
       {/* Zoom controls */}
       <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-md p-2 flex space-x-2">

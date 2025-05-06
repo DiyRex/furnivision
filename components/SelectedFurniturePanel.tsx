@@ -1,11 +1,11 @@
-// components/SelectedFurniturePanel.tsx (update)
+// components/SelectedFurniturePanel.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useDesign } from '../lib/DesignContext';
 
 export default function SelectedFurniturePanel() {
-  const { selectedFurniture, updateFurniture, removeFurniture } = useDesign();
+  const { selectedFurniture, updateFurniture, removeFurniture, room } = useDesign();
   const [x, setX] = useState('0');
   const [z, setZ] = useState('0');
   const [rotation, setRotation] = useState('0');
@@ -31,25 +31,78 @@ export default function SelectedFurniturePanel() {
     );
   }
   
-  const handlePositionUpdate = () => {
+  // Handle X position change immediately
+  const handleXChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setX(newValue);
+    
     if (!selectedFurniture.position) return;
+    
+    const xVal = Math.max(
+      selectedFurniture.width / 2,
+      Math.min(
+        parseFloat(newValue) || 0,
+        room.width - selectedFurniture.width / 2
+      )
+    );
     
     updateFurniture({
       ...selectedFurniture,
       position: {
         ...selectedFurniture.position,
-        x: parseFloat(x) || 0,
-        z: parseFloat(z) || 0
-      },
-      rotation: (parseFloat(rotation) || 0) * Math.PI / 180
+        x: xVal
+      }
     });
   };
   
-  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setColor(e.target.value);
+  // Handle Z position change immediately
+  const handleZChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setZ(newValue);
+    
+    if (!selectedFurniture.position) return;
+    
+    const zVal = Math.max(
+      selectedFurniture.depth / 2,
+      Math.min(
+        parseFloat(newValue) || 0,
+        room.length - selectedFurniture.depth / 2
+      )
+    );
+    
     updateFurniture({
       ...selectedFurniture,
-      color: e.target.value
+      position: {
+        ...selectedFurniture.position,
+        z: zVal
+      }
+    });
+  };
+  
+  // Handle rotation change immediately 
+  const handleRotationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setRotation(newValue);
+    
+    if (!selectedFurniture.position) return;
+    
+    // Convert degrees to radians and update
+    const rotationRad = (parseFloat(newValue) || 0) * Math.PI / 180;
+    
+    updateFurniture({
+      ...selectedFurniture,
+      rotation: rotationRad
+    });
+  };
+  
+  // Handle color change
+  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newColor = e.target.value;
+    setColor(newColor);
+    
+    updateFurniture({
+      ...selectedFurniture,
+      color: newColor
     });
   };
   
@@ -102,8 +155,7 @@ export default function SelectedFurniturePanel() {
                   type="number"
                   step="0.1"
                   value={x}
-                  onChange={(e) => setX(e.target.value)}
-                  onBlur={handlePositionUpdate}
+                  onChange={handleXChange}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                 />
               </div>
@@ -118,8 +170,7 @@ export default function SelectedFurniturePanel() {
                   type="number"
                   step="0.1"
                   value={z}
-                  onChange={(e) => setZ(e.target.value)}
-                  onBlur={handlePositionUpdate}
+                  onChange={handleZChange}
                   className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                 />
               </div>
@@ -135,8 +186,7 @@ export default function SelectedFurniturePanel() {
                 type="number"
                 step="15"
                 value={rotation}
-                onChange={(e) => setRotation(e.target.value)}
-                onBlur={handlePositionUpdate}
+                onChange={handleRotationChange}
                 className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
               />
             </div>
