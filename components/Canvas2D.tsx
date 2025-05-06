@@ -34,6 +34,7 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartY, setDragStartY] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1.2); // Start with larger zoom
+  const draggedFurnitureRef = useRef<Furniture | null>(null);
 
   // Force re-render on view change
   const [forceRender, setForceRender] = useState(0);
@@ -61,7 +62,12 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
       setForceRender(prev => prev + 1);
     }, 100);
     
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // Clean up dragging state when unmounting
+      setIsDragging(false);
+      draggedFurnitureRef.current = null;
+    };
   }, []);
 
   // Handle zoom in
@@ -329,7 +335,9 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
         y >= itemY && 
         y <= itemY + displayHeight
       ) {
+        // Store the selected furniture in both state and ref
         selectFurniture(item);
+        draggedFurnitureRef.current = item;
         setIsDragging(true);
         setDragStartX(x);
         setDragStartY(y);
@@ -339,11 +347,12 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
 
     // If no furniture was clicked, deselect
     selectFurniture(null);
+    draggedFurnitureRef.current = null;
   };
 
   // Handle canvas mouse move (drag furniture)
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !selectedFurniture || !canvasRef.current) return;
+    if (!isDragging || !draggedFurnitureRef.current || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -356,23 +365,27 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
     const deltaXMeters = deltaX / scale;
 
     // Update position (only X in wall view)
-    if (selectedFurniture.position) {
+    if (draggedFurnitureRef.current.position) {
       const newPosition = {
-        ...selectedFurniture.position,
+        ...draggedFurnitureRef.current.position,
         x: Math.max(
-          selectedFurniture.width / 2,
+          draggedFurnitureRef.current.width / 2,
           Math.min(
-            room.width - selectedFurniture.width / 2,
-            selectedFurniture.position.x + deltaXMeters
+            room.width - draggedFurnitureRef.current.width / 2,
+            draggedFurnitureRef.current.position.x + deltaXMeters
           )
         ),
       };
 
       // Update the furniture
-      updateFurniture({
-        ...selectedFurniture,
+      const updatedFurniture = {
+        ...draggedFurnitureRef.current,
         position: newPosition,
-      });
+      };
+      
+      // Update both the context and our local ref
+      updateFurniture(updatedFurniture);
+      draggedFurnitureRef.current = updatedFurniture;
     }
 
     // Reset drag start position
@@ -383,6 +396,7 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
   // Handle canvas mouse up (end dragging)
   const handleMouseUp = () => {
     setIsDragging(false);
+    draggedFurnitureRef.current = null;
   };
 
   // Resize canvas when window resizes or first mounting
@@ -423,10 +437,7 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
         onMouseLeave={handleMouseUp}
         className="w-full h-full"
       />
-      <div className="absolute bottom-20 left-4 bg-slate-500 rounded shadow-lg p-4 z-10">
-        <FurnitureControls />
-      </div>
-
+      <FurnitureControls />
       
       {/* Zoom controls */}
       <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-md p-2 flex space-x-2">
@@ -458,6 +469,13 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
           </svg>
         </button>
       </div>
+      
+      {/* Instructions tooltip when nothing is selected */}
+      {!selectedFurniture && (
+        <div className="absolute bottom-4 left-4 bg-white bg-opacity-70 rounded-lg p-3 text-sm">
+          Click on furniture to select and drag it, or use controls to move precisely
+        </div>
+      )}
     </div>
   );
 });
@@ -465,3 +483,16 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
 Canvas2D.displayName = "Canvas2D";
 
 export default Canvas2D;
+
+
+
+
+
+
+
+
+
+
+{/* <div className="absolute bottom-20 left-4 bg-slate-500 rounded shadow-lg p-4 z-10">
+        <FurnitureControls />
+      </div> */}

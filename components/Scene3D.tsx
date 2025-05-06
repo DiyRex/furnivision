@@ -19,9 +19,14 @@ export default function Scene3D() {
   const furnitureObjectsRef = useRef<Map<number, THREE.Object3D>>(new Map());
   const rotationControlRef = useRef<THREE.Group | null>(null);
   
-  // State for controlling UI elements
+  // State for controlling UI elements and drag operations
   const [isControlsVisible, setIsControlsVisible] = useState(false);
   const [isControlsOpen, setIsControlsOpen] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isRotating, setIsRotating] = useState(false);
+  const draggedObjectRef = useRef<THREE.Object3D | null>(null);
+  const dragPlaneRef = useRef(new THREE.Plane());
+  const rotationStartAngleRef = useRef(0);
 
   const {
     room,
@@ -363,12 +368,9 @@ export default function Scene3D() {
     // Set up raycaster for picking and dragging
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    let isDragging = false;
-    let isRotating = false;
-    let draggedObject: THREE.Object3D | null = null;
-    let dragStartPosition = new THREE.Vector3();
-    let dragPlane = new THREE.Plane();
-    let rotationStartAngle = 0;
+    const dragStartPosition = new THREE.Vector3();
+    const dragPlane = new THREE.Plane();
+    dragPlaneRef.current = dragPlane;
 
     const onMouseDown = (event: MouseEvent) => {
       // Calculate mouse position in normalized device coordinates
@@ -384,7 +386,7 @@ export default function Scene3D() {
         const rotationIntersects = raycaster.intersectObject(rotationControlRef.current, true);
         if (rotationIntersects.length > 0) {
           // Start rotation mode
-          isRotating = true;
+          setIsRotating(true);
           
           // Calculate angle between mouse position and furniture center
           if (selectedFurniture && selectedFurniture.position) {
@@ -396,7 +398,7 @@ export default function Scene3D() {
               pos.project(camera);
               
               // Calculate start angle
-              rotationStartAngle = Math.atan2(mouse.y - pos.y, mouse.x - pos.x);
+              rotationStartAngleRef.current = Math.atan2(mouse.y - pos.y, mouse.x - pos.x);
             }
           }
           
@@ -436,17 +438,17 @@ export default function Scene3D() {
           setIsControlsVisible(true);
 
           // Start dragging the parent object
-          isDragging = true;
-          draggedObject = parentObject;
+          setIsDragging(true);
+          draggedObjectRef.current = parentObject;
           
           // Store initial position for reference
-          if (draggedObject) {
-            dragStartPosition.copy(draggedObject.position);
+          if (draggedObjectRef.current) {
+            dragStartPosition.copy(draggedObjectRef.current.position);
             
             // Create a horizontal drag plane at the object's y position
             dragPlane.setFromNormalAndCoplanarPoint(
               new THREE.Vector3(0, 1, 0),  // Normal pointing up
-              draggedObject.position       // Point on the plane
+              draggedObjectRef.current.position       // Point on the plane
             );
           }
         } else if (pickedObject === floor) {
@@ -487,7 +489,7 @@ export default function Scene3D() {
         const currentAngle = Math.atan2(mouse.y - pos.y, mouse.x - pos.x);
         
         // Calculate angle difference
-        const deltaAngle = currentAngle - rotationStartAngle;
+        const deltaAngle = currentAngle - rotationStartAngleRef.current;
         
         // Get the current rotation
         const currentRotation = selectedFurniture.rotation || 0;
@@ -499,13 +501,13 @@ export default function Scene3D() {
         });
         
         // Update start angle for next frame
-        rotationStartAngle = currentAngle;
+        rotationStartAngleRef.current = currentAngle;
         
         return;
       }
       
       // Handle dragging
-      if (!isDragging || !draggedObject) return;
+      if (!isDragging || !draggedObjectRef.current) return;
 
       // Calculate mouse position in normalized device coordinates
       const rect = renderer.domElement.getBoundingClientRect();
@@ -517,13 +519,13 @@ export default function Scene3D() {
       
       // Find the intersection point with the horizontal drag plane
       const raycastResult = new THREE.Vector3();
-      if (raycaster.ray.intersectPlane(dragPlane, raycastResult)) {
+      if (raycaster.ray.intersectPlane(dragPlaneRef.current, raycastResult)) {
         // Update object position - only X and Z (horizontal)
         // Keep the same Y position to make sure we're only moving horizontally
-        const originalY = draggedObject.position.y;
+        const originalY = draggedObjectRef.current.position.y;
         
         // Make sure furniture stays within room boundaries
-        const selectedItem = furniture.find(item => item.id === draggedObject?.userData.furnitureId);
+        const selectedItem = furniture.find(item => item.id === draggedObjectRef.current?.userData.furnitureId);
         if (selectedItem) {
           const halfWidth = selectedItem.width / 2;
           const halfDepth = selectedItem.depth / 2;
@@ -532,10 +534,10 @@ export default function Scene3D() {
           const newX = Math.max(halfWidth, Math.min(room.width - halfWidth, raycastResult.x));
           const newZ = Math.max(halfDepth, Math.min(room.length - halfDepth, raycastResult.z));
           
-          draggedObject.position.set(newX, originalY, newZ);
+          draggedObjectRef.current.position.set(newX, originalY, newZ);
           
           // Find and update the furniture item in the global state
-          const furnitureId = draggedObject.userData.furnitureId;
+          const furnitureId = draggedObjectRef.current.userData.furnitureId;
           const item = furniture.find((item) => item.id === furnitureId);
 
           if (item && item.position) {
@@ -557,9 +559,9 @@ export default function Scene3D() {
     };
 
     const onMouseUp = () => {
-      isDragging = false;
-      isRotating = false;
-      draggedObject = null;
+      setIsDragging(false);
+      setIsRotating(false);
+      draggedObjectRef.current = null;
       
       // Re-enable controls after dragging or rotating
       if (controlsRef.current) {
@@ -600,6 +602,11 @@ export default function Scene3D() {
 
     // Cleanup
     return () => {
+      // Reset dragging state on unmount
+      setIsDragging(false);
+      setIsRotating(false);
+      draggedObjectRef.current = null;
+
       if (containerRef.current && renderer.domElement.parentNode) {
         containerRef.current.removeChild(renderer.domElement);
       }
@@ -630,6 +637,7 @@ export default function Scene3D() {
     furniture.length,  // Only depend on the length to avoid too many re-renders
     backgroundImages,
     furnitureModels,
+    selectedFurniture?.id, // Add dependency on selected furniture ID for proper highlighting
   ]);
 
   // Update selected furniture highlight and position when selection changes
@@ -786,7 +794,7 @@ export default function Scene3D() {
           </div>
           
           {isControlsOpen && (
-            <div className="p-2  mb-12">
+            <div className="p-2 mb-12">
               <div className="grid grid-cols-3 gap-1">
                 {/* Move left */}
                 <button className="p-2 hover:bg-gray-100 rounded" onClick={moveLeft}>
