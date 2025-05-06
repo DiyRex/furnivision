@@ -13,6 +13,8 @@ import SelectedFurniturePanel from "../../../components/SelectedFurniturePanel";
 import SaveDesignModal from "../../../components/SaveDesignModal";
 import DesignGallery from "../../../components/DesignGallery";
 import RoomBackgrounds from "../../../components/RoomBackgrounds";
+import ModelUploader from "../../../components/ModelUploader";
+import ModelLibrary from "../../../components/ModelLibrary";
 
 export default function Dashboard() {
   const [view, setView] = useState<"2d" | "3d">("2d");
@@ -82,6 +84,16 @@ export default function Dashboard() {
                   Furniture
                 </button>
                 <button
+                  onClick={() => setActiveTab("models")}
+                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                    activeTab === "models"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  3D Models
+                </button>
+                <button
                   onClick={() => setActiveTab("backgrounds")}
                   className={`w-1/5 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "backgrounds"
@@ -110,6 +122,13 @@ export default function Dashboard() {
               {activeTab === "backgrounds" && <RoomBackgrounds />}
               {activeTab === "furniture" && <FurnitureSelector />}
               {activeTab === "colors" && <ColorPicker />}
+              {activeTab === "models" && (
+                <div className="space-y-6">
+                  <ModelUploader />
+                  <div className="border-t my-4"></div>
+                  <ModelLibrary />
+                </div>
+              )}
             </div>
 
             {/* Only show furniture panel when not in gallery view */}

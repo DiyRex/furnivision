@@ -8,12 +8,17 @@ import {
   ReactNode,
   useEffect,
 } from "react";
-import { Room, Furniture, Design, BackgroundImage } from "./types";
+import { Room, Furniture, Design, BackgroundImage, FurnitureModel } from "./types";
 
 interface DesignContextType {
   room: Room;
   furniture: Furniture[];
   selectedFurniture: Furniture | null;
+  furnitureModels: FurnitureModel[];
+  addCustomFurnitureModel: (model: FurnitureModel) => void;
+  removeFurnitureModel: (id: string) => void;
+  addFurnitureWithModel: (modelId: string) => void;
+  getFurnitureModel: (id: string) => Promise<FurnitureModel | null>;
   backgroundImages: BackgroundImage[];
   updateRoom: (room: Partial<Room>) => void;
   addFurniture: (furniture: Omit<Furniture, "position" | "rotation">) => void;
@@ -29,6 +34,91 @@ interface DesignContextType {
 }
 
 const DesignContext = createContext<DesignContextType | undefined>(undefined);
+
+// Initialize IndexedDB for models
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('FurniVisionDB', 1);
+    
+    request.onupgradeneeded = (event) => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('models')) {
+        db.createObjectStore('models', { keyPath: 'id' });
+      }
+    };
+    
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// Function to save model to IndexedDB
+const saveModelToDB = async (model: FurnitureModel) => {
+  try {
+    const db = await initDB() as IDBDatabase;
+    const transaction = db.transaction(['models'], 'readwrite');
+    const store = transaction.objectStore('models');
+    return new Promise((resolve, reject) => {
+      const request = store.put(model);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Error saving model to IndexedDB:', error);
+    throw error;
+  }
+};
+
+// Function to get model from IndexedDB
+const getModelFromDB = async (id: string): Promise<FurnitureModel | null> => {
+  try {
+    const db = await initDB() as IDBDatabase;
+    const transaction = db.transaction(['models'], 'readonly');
+    const store = transaction.objectStore('models');
+    return new Promise((resolve, reject) => {
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Error getting model from IndexedDB:', error);
+    return null;
+  }
+};
+
+// Function to delete model from IndexedDB
+const deleteModelFromDB = async (id: string) => {
+  try {
+    const db = await initDB() as IDBDatabase;
+    const transaction = db.transaction(['models'], 'readwrite');
+    const store = transaction.objectStore('models');
+    return new Promise((resolve, reject) => {
+      const request = store.delete(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Error deleting model from IndexedDB:', error);
+    throw error;
+  }
+};
+
+// Function to get all models from IndexedDB
+const getAllModelsFromDB = async (): Promise<FurnitureModel[]> => {
+  try {
+    const db = await initDB() as IDBDatabase;
+    const transaction = db.transaction(['models'], 'readonly');
+    const store = transaction.objectStore('models');
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Error getting all models from IndexedDB:', error);
+    return [];
+  }
+};
 
 export function DesignProvider({ children }: { children: ReactNode }) {
   const [room, setRoom] = useState<Room>({
@@ -48,6 +138,81 @@ export function DesignProvider({ children }: { children: ReactNode }) {
   const [backgroundImages, setBackgroundImages] = useState<BackgroundImage[]>(
     []
   );
+
+  const [furnitureModels, setFurnitureModels] = useState<FurnitureModel[]>([]);
+  // Load furniture models from IndexedDB on initial load
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const models = await getAllModelsFromDB();
+        setFurnitureModels(models);
+      } catch (error) {
+        console.error("Error loading furniture models:", error);
+      }
+    };
+    
+    loadModels();
+  }, []);
+
+  // Add a custom furniture model
+  const addCustomFurnitureModel = async (model: FurnitureModel) => {
+    try {
+      // Save model to IndexedDB
+      await saveModelToDB(model);
+      
+      // Update state with metadata only (no url)
+      const metadataModel = {
+        ...model,
+        url: '', // Don't store the URL in state to save memory
+      };
+      
+      setFurnitureModels(prev => [...prev, metadataModel]);
+    } catch (error) {
+      console.error('Error adding model:', error);
+      alert('Failed to add model. The file might be too large.');
+    }
+  };
+
+  // Remove a furniture model
+  const removeFurnitureModel = async (id: string) => {
+    try {
+      // Delete from IndexedDB
+      await deleteModelFromDB(id);
+      
+      // Update state
+      setFurnitureModels(prev => prev.filter(model => model.id !== id));
+    } catch (error) {
+      console.error('Error removing model:', error);
+    }
+  };
+
+  // Function to get a furniture model with full data
+  const getFurnitureModel = async (id: string): Promise<FurnitureModel | null> => {
+    return await getModelFromDB(id);
+  };
+
+  // Add furniture with a 3D model
+  const addFurnitureWithModel = (modelId: string) => {
+    const model = furnitureModels.find((m) => m.id === modelId);
+    if (!model) return;
+
+    const newFurniture: Furniture = {
+      id: nextId,
+      type: model.type,
+      name: model.name,
+      width: model.dimensions.width,
+      depth: model.dimensions.depth,
+      height: model.dimensions.height,
+      color: "#CCCCCC", // Default color
+      position: { x: room.width / 2, y: 0, z: room.length / 2 },
+      rotation: 0,
+      modelId: model.id, // Reference to the model
+    };
+
+    setFurniture([...furniture, newFurniture]);
+    setSelectedFurniture(newFurniture);
+    setNextId(nextId + 1);
+  };
 
   // Load background images from localStorage on initial load
   useEffect(() => {
@@ -248,6 +413,11 @@ export function DesignProvider({ children }: { children: ReactNode }) {
         room,
         furniture,
         selectedFurniture,
+        furnitureModels,
+        addCustomFurnitureModel,
+        removeFurnitureModel,
+        addFurnitureWithModel,
+        getFurnitureModel,
         backgroundImages,
         updateRoom,
         addFurniture,

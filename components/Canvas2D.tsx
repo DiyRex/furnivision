@@ -26,6 +26,7 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
     selectFurniture,
     updateFurniture,
     backgroundImages,
+    furnitureModels,
   } = useDesign();
 
   // State to track dragging and zooming
@@ -212,14 +213,48 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
         );
         ctx.fill();
         
-        // Draw item
-        ctx.fillStyle = item.color;
-        ctx.fillRect(
-          x - (displayWidth/2), 
-          y,
-          displayWidth * depthFactor, 
-          displayHeight
-        );
+        // Check if this is a 3D model
+        if (item.modelId) {
+          // Draw a more detailed representation for 3D models
+          ctx.fillStyle = item.color;
+          
+          // Draw base shape
+          ctx.fillRect(
+            x - (displayWidth/2), 
+            y,
+            displayWidth * depthFactor, 
+            displayHeight
+          );
+          
+          // Add some detail lines to indicate it's a 3D model
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 0.5;
+          
+          // Draw some internal lines to suggest 3D structure
+          ctx.beginPath();
+          ctx.moveTo(x - displayWidth/4, y);
+          ctx.lineTo(x - displayWidth/4, y + displayHeight);
+          ctx.stroke();
+          
+          ctx.beginPath();
+          ctx.moveTo(x + displayWidth/4, y);
+          ctx.lineTo(x + displayWidth/4, y + displayHeight);
+          ctx.stroke();
+          
+          ctx.beginPath();
+          ctx.moveTo(x - (displayWidth/2), y + displayHeight/2);
+          ctx.lineTo(x + (displayWidth/2) * depthFactor, y + displayHeight/2);
+          ctx.stroke();
+        } else {
+          // Draw regular furniture as before
+          ctx.fillStyle = item.color;
+          ctx.fillRect(
+            x - (displayWidth/2), 
+            y,
+            displayWidth * depthFactor, 
+            displayHeight
+          );
+        }
         
         // Draw outline (highlight if selected)
         ctx.strokeStyle = item.id === selectedFurniture?.id ? '#3B82F6' : '#000';
@@ -241,6 +276,16 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
           y + displayHeight / 2
         );
         
+        // If it's a 3D model, add a small indicator
+        if (item.modelId) {
+          ctx.fillStyle = '#3B82F6';
+          ctx.fillText(
+            '3D',
+            x,
+            y + displayHeight / 2 + 16
+          );
+        }
+        
         ctx.restore();
       });
     };
@@ -248,7 +293,7 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
     // Trigger room rendering
     renderRoom();
 
-  }, [room, furniture, selectedFurniture, backgroundImages, scale, zoomLevel, forceRender]);
+  }, [room, furniture, selectedFurniture, backgroundImages, scale, zoomLevel, forceRender, furnitureModels]);
 
   // Handle canvas mouse down (start dragging)
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {

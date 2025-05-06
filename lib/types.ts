@@ -24,6 +24,7 @@ export interface Room {
     color: string;
     position?: Position;
     rotation?: number;
+    modelId?: string;
   }
 
 export interface Design {
@@ -49,4 +50,20 @@ export interface Room {
   wallColor: string;
   floorColor: string;
   activeBackgroundId?: string | null; // ID of the active background image
+}
+
+export interface ModelDimensions {
+  width: number;
+  depth: number;
+  height: number;
+}
+
+export interface FurnitureModel {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+  format: string;
+  dimensions: ModelDimensions;
+  thumbnail?: string;
 }
