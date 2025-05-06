@@ -1,7 +1,7 @@
 // components/Scene3D.tsx
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useDesign } from "../lib/DesignContext";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -9,7 +9,12 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { Furniture } from "../lib/types";
 
-export default function Scene3D() {
+// Define the imperative handle type for Scene3D
+export interface Scene3DHandle {
+  captureImage: () => string | null;
+}
+
+const Scene3D = forwardRef<Scene3DHandle, {}>((props, ref) => {
   // DOM refs
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -45,6 +50,21 @@ export default function Scene3D() {
     backgroundImages,
     getFurnitureModel
   } = useDesign();
+
+  // Expose the captureImage method to parent components
+  useImperativeHandle(ref, () => ({
+    captureImage: () => {
+      if (!rendererRef.current) return null;
+      
+      // Force a render before capture to ensure the latest state is shown
+      if (sceneRef.current && cameraRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      }
+      
+      // Capture the canvas as a PNG image
+      return rendererRef.current.domElement.toDataURL("image/png");
+    },
+  }));
 
   // Force re-render function
   const forceRender = useCallback(() => {
@@ -699,7 +719,7 @@ export default function Scene3D() {
             </button>
           </div>
           
-          <div className="controls-content p-2">
+          <div className="controls-content p-2 mb-12">
             <div className="grid grid-cols-3 gap-1">
               {/* Move left */}
               <button className="p-2 hover:bg-gray-100 rounded" onClick={moveLeft}>
@@ -755,4 +775,8 @@ export default function Scene3D() {
       )}
     </div>
   );
-}
+});
+
+Scene3D.displayName = "Scene3D";
+
+export default Scene3D;

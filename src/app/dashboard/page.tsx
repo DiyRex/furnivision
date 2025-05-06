@@ -1,13 +1,13 @@
 // app/dashboard/page.tsx
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import RoomSettings from "../../../components/RoomSettings";
 import ColorPicker from "../../../components/ColorPicker";
 import FurnitureSelector from "../../../components/FurnitureSelector";
 import { DesignProvider, useDesign } from "../../../lib/DesignContext";
 import Canvas2D, { Canvas2DHandle } from "../../../components/Canvas2D";
-import Scene3D from "../../../components/Scene3D";
+import Scene3D, { Scene3DHandle } from "../../../components/Scene3D";
 import FurnitureControls from "../../../components/FurnitureControls";
 import SelectedFurniturePanel from "../../../components/SelectedFurniturePanel";
 import SaveDesignModal from "../../../components/SaveDesignModal";
@@ -15,48 +15,24 @@ import DesignGallery from "../../../components/DesignGallery";
 import RoomBackgrounds from "../../../components/RoomBackgrounds";
 import ModelUploader from "../../../components/ModelUploader";
 import ModelLibrary from "../../../components/ModelLibrary";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { useRouter } from "next/navigation";
-import { app } from "../services/firebase/config";
-import { UserCircle } from "lucide-react";
-import { Menu } from "@headlessui/react";
-import { logout } from "../services/firebase/Logout";
 
 export default function Dashboard() {
-  const router = useRouter();
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
   const [view, setView] = useState<"2d" | "3d">("2d");
   const [activeTab, setActiveTab] = useState("room");
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const canvas2DRef = useRef<Canvas2DHandle>(null);
+  const scene3DRef = useRef<Scene3DHandle>(null);
   const [viewChanged, setViewChanged] = useState(false);
 
-  useEffect(() => {
-    const auth = getAuth(app);
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user || !user.email) {
-        router.replace("/auth");
-      } else {
-        setUserEmail(user.email);
-      }
-      setAuthChecked(true); // Mark auth check complete
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  if (!authChecked) return null;
-
   const captureScreenshot = () => {
-    // If we're in 2D view, capture from Canvas2D
+    // Capture from the appropriate view
     if (view === "2d" && canvas2DRef.current) {
       return canvas2DRef.current.captureImage();
+    } else if (view === "3d" && scene3DRef.current) {
+      return scene3DRef.current.captureImage();
     }
-
-    // For 3D view, return null for now
+    
+    // If neither reference is available
     return null;
   };
 
@@ -79,28 +55,9 @@ export default function Dashboard() {
             </button>
           </div>
           <div className="ml-auto flex items-center space-x-4">
-            <Menu as="div" className="relative">
-              <Menu.Button className="flex items-center space-x-2 focus:outline-none">
-                <UserCircle className="h-8 w-8 text-indigo-600" />
-              </Menu.Button>
-
-              <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
-                <div className="py-1">
-                  <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200">
-                    {userEmail}
-                  </div>
-                  <button
-                    onClick={async () => {
-                      await logout();
-                      router.replace("/auth");
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </Menu.Items>
-            </Menu>
+            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+              <span className="text-indigo-800 font-medium">DS</span>
+            </div>
           </div>
         </div>
 
@@ -111,7 +68,7 @@ export default function Dashboard() {
               <nav className="flex -mb-px" aria-label="Tabs">
                 <button
                   onClick={() => setActiveTab("room")}
-                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "room"
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -119,20 +76,19 @@ export default function Dashboard() {
                 >
                   Room
                 </button>
-  
                 <button
                   onClick={() => setActiveTab("models")}
-                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "models"
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }`}
                 >
-                  Furnitures
+                  Furniture
                 </button>
                 <button
                   onClick={() => setActiveTab("backgrounds")}
-                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "backgrounds"
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -142,7 +98,7 @@ export default function Dashboard() {
                 </button>
                 <button
                   onClick={() => setActiveTab("colors")}
-                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "colors"
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -161,8 +117,9 @@ export default function Dashboard() {
               {activeTab === "colors" && <ColorPicker />}
               {activeTab === "models" && (
                 <div className="space-y-6">
-                  <div className="border-t my-"></div>
                   <ModelUploader />
+                  <div className="border-t my-4"></div>
+                  {/* <ModelLibrary /> */}
                 </div>
               )}
             </div>
@@ -227,7 +184,10 @@ export default function Dashboard() {
                   key={viewChanged ? "changed" : "static"}
                 />
               ) : (
-                <Scene3D key={viewChanged ? "changed" : "static"} />
+                <Scene3D 
+                  ref={scene3DRef}
+                  key={viewChanged ? "changed" : "static"}
+                />
               )}
             </div>
           </div>
