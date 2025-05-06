@@ -1,7 +1,7 @@
 // components/Scene3D.tsx
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useDesign } from "../lib/DesignContext";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -31,6 +31,9 @@ export default function Scene3D() {
   // Store for 3D objects
   const furnitureObjectsRef = useRef(new Map<number, THREE.Object3D>());
   
+  // State to track furniture changes and force re-renders
+  const [furnitureVersion, setFurnitureVersion] = useState(0);
+  
   // Get design context
   const {
     room,
@@ -43,74 +46,245 @@ export default function Scene3D() {
     getFurnitureModel
   } = useDesign();
 
-  // Control panel handlers
-  const handleToggleControls = () => {
-    const controlsDiv = document.querySelector('.furniture-controls');
-    if (controlsDiv) {
-      controlsDiv.classList.toggle('controls-open');
+  // Force re-render function
+  const forceRender = useCallback(() => {
+    setFurnitureVersion(prev => prev + 1);
+  }, []);
+
+  // Function to create a 3D object from furniture data
+  const createFurnitureObject = useCallback(async (item: Furniture): Promise<THREE.Object3D | null> => {
+    if (!item.position) return null;
+    
+    if (item.modelId) {
+      // This is a 3D model
+      const model = await getFurnitureModel(item.modelId);
+      if (!model) return null;
+      
+      try {
+        // Choose loader based on format
+        if (model.format === 'glb' || model.format === 'gltf') {
+          const loader = new GLTFLoader();
+          const gltf = await new Promise<any>((resolve, reject) => {
+            loader.load(model.url, resolve, undefined, reject);
+          });
+          
+          const object = gltf.scene;
+          
+          // Scale to match furniture dimensions
+          const bbox = new THREE.Box3().setFromObject(object);
+          const size = new THREE.Vector3();
+          bbox.getSize(size);
+          
+          // Check if dimensions are valid
+          if (size.x === 0 || size.y === 0 || size.z === 0) {
+            console.warn("Model has zero dimensions, using default sizes");
+            object.scale.set(
+              item.width, 
+              item.height, 
+              item.depth
+            );
+          } else {
+            const scaleX = item.width / size.x;
+            const scaleY = item.height / size.y;
+            const scaleZ = item.depth / size.z;
+            object.scale.set(scaleX, scaleY, scaleZ);
+          }
+          
+          // Add shadows and highlight if selected
+          object.traverse((child: THREE.Object3D) => {
+            if (child instanceof THREE.Mesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              
+              // Apply material
+              child.material = new THREE.MeshStandardMaterial({
+                color: item.color,
+                emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
+                emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
+              });
+            }
+          });
+          
+          // Calculate position to place bottom at floor level
+          const updatedBox = new THREE.Box3().setFromObject(object);
+          const bottomY = -updatedBox.min.y; // Offset to place bottom at Y=0
+          
+          // Position and set userData
+          object.position.set(item.position.x, bottomY, item.position.z);
+          object.userData.furnitureId = item.id;
+          object.userData.originalY = bottomY; // Store for later repositioning
+          
+          // Rotation
+          if (item.rotation !== undefined) {
+            object.rotation.y = item.rotation;
+          }
+          
+          return object;
+        } else if (model.format === 'obj') {
+          const loader = new OBJLoader();
+          const object = await new Promise<THREE.Group>((resolve, reject) => {
+            loader.load(model.url, resolve, undefined, reject);
+          });
+          
+          // Scale to match furniture dimensions
+          const bbox = new THREE.Box3().setFromObject(object);
+          const size = new THREE.Vector3();
+          bbox.getSize(size);
+          
+          // Check if dimensions are valid
+          if (size.x === 0 || size.y === 0 || size.z === 0) {
+            console.warn("Model has zero dimensions, using default sizes");
+            object.scale.set(
+              item.width, 
+              item.height, 
+              item.depth
+            );
+          } else {
+            const scaleX = item.width / size.x;
+            const scaleY = item.height / size.y;
+            const scaleZ = item.depth / size.z;
+            object.scale.set(scaleX, scaleY, scaleZ);
+          }
+          
+          // Add shadows and highlight if selected
+          object.traverse((child: THREE.Object3D) => {
+            if (child instanceof THREE.Mesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              
+              // Apply material
+              child.material = new THREE.MeshStandardMaterial({
+                color: item.color,
+                emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
+                emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
+              });
+            }
+          });
+          
+          // Calculate position to place bottom at floor level
+          const updatedBox = new THREE.Box3().setFromObject(object);
+          const bottomY = -updatedBox.min.y; // Offset to place bottom at Y=0
+          
+          // Position and set userData
+          object.position.set(item.position.x, bottomY, item.position.z);
+          object.userData.furnitureId = item.id;
+          object.userData.originalY = bottomY; // Store for later repositioning
+          
+          // Rotation
+          if (item.rotation !== undefined) {
+            object.rotation.y = item.rotation;
+          }
+          
+          return object;
+        }
+      } catch (error) {
+        console.error(`Error loading ${model.format} model:`, error);
+      }
     }
-  };
+    
+    // Fall back to basic box for non-model furniture or if model loading failed
+    const geometry = new THREE.BoxGeometry(item.width, item.height, item.depth);
+    const material = new THREE.MeshStandardMaterial({
+      color: item.color,
+      emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
+      emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    
+    // Position center of box at floor level + half height
+    mesh.position.set(
+      item.position.x,
+      item.height / 2,
+      item.position.z
+    );
+    
+    // Rotation
+    if (item.rotation) {
+      mesh.rotation.y = item.rotation;
+    }
+    
+    // Store furniture ID
+    mesh.userData.furnitureId = item.id;
+    mesh.userData.originalY = item.height / 2; // Store for later repositioning
+    
+    return mesh;
+  }, [getFurnitureModel, selectedFurniture]);
 
-  const moveLeft = () => {
-    if (!selectedFurniture?.position) return;
-    updateFurniture({
-      ...selectedFurniture,
-      position: {
-        ...selectedFurniture.position,
-        x: Math.max(selectedFurniture.width / 2, selectedFurniture.position.x - 0.1)
+  // Update or create furniture 3D objects
+  const updateFurnitureObjects = useCallback(async () => {
+    if (!sceneRef.current) return;
+    
+    const scene = sceneRef.current;
+    const currentIds = new Set(furniture.map(item => item.id));
+    
+    console.log("Updating furniture objects:", furniture.length);
+    
+    // STEP 1: Remove objects that are no longer in the furniture list
+    const objectsToRemove: number[] = [];
+    furnitureObjectsRef.current.forEach((object, id) => {
+      if (!currentIds.has(id)) {
+        objectsToRemove.push(id);
+        scene.remove(object);
       }
     });
-  };
-
-  const moveRight = () => {
-    if (!selectedFurniture?.position) return;
-    updateFurniture({
-      ...selectedFurniture,
-      position: {
-        ...selectedFurniture.position,
-        x: Math.min(room.width - selectedFurniture.width / 2, selectedFurniture.position.x + 0.1)
+    
+    // Remove from our map
+    for (const id of objectsToRemove) {
+      furnitureObjectsRef.current.delete(id);
+    }
+    
+    // STEP 2: Process each furniture item
+    for (const item of furniture) {
+      if (!item.position) continue;
+      
+      // Check if we already have this object
+      const existingObject = furnitureObjectsRef.current.get(item.id);
+      
+      if (existingObject) {
+        // Update existing object position and rotation
+        existingObject.position.x = item.position.x;
+        existingObject.position.z = item.position.z;
+        
+        // Keep the original Y position
+        if (existingObject.userData.originalY !== undefined) {
+          existingObject.position.y = existingObject.userData.originalY;
+        }
+        
+        // Update rotation
+        if (item.rotation !== undefined) {
+          existingObject.rotation.y = item.rotation;
+        }
+        
+        // Update material for selection state
+        existingObject.traverse((child: THREE.Object3D) => {
+          if (child instanceof THREE.Mesh) {
+            child.material = new THREE.MeshStandardMaterial({
+              color: item.color,
+              emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
+              emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
+            });
+          }
+        });
+      } else {
+        // Create new object for this furniture item
+        console.log(`Creating new 3D object for furniture ${item.id}`);
+        const newObject = await createFurnitureObject(item);
+        if (newObject) {
+          scene.add(newObject);
+          furnitureObjectsRef.current.set(item.id, newObject);
+        }
       }
-    });
-  };
+    }
+  }, [furniture, selectedFurniture, createFurnitureObject]);
 
-  const moveForward = () => {
-    if (!selectedFurniture?.position) return;
-    updateFurniture({
-      ...selectedFurniture,
-      position: {
-        ...selectedFurniture.position,
-        z: Math.max(selectedFurniture.depth / 2, selectedFurniture.position.z - 0.1)
-      }
-    });
-  };
-
-  const moveBackward = () => {
-    if (!selectedFurniture?.position) return;
-    updateFurniture({
-      ...selectedFurniture,
-      position: {
-        ...selectedFurniture.position,
-        z: Math.min(room.length - selectedFurniture.depth / 2, selectedFurniture.position.z + 0.1)
-      }
-    });
-  };
-
-  const rotate = () => {
-    if (!selectedFurniture) return;
-    updateFurniture({
-      ...selectedFurniture,
-      rotation: (selectedFurniture.rotation || 0) + Math.PI / 4
-    });
-  };
-
-  const handleDelete = () => {
-    if (!selectedFurniture) return;
-    removeFurniture(selectedFurniture.id);
-  };
-
-  // Setup scene on mount
+  // Initial setup of scene, camera, renderer, controls
   useEffect(() => {
     if (!containerRef.current) return;
+    
+    console.log("Setting up Scene3D with room:", room);
 
     // --- SCENE SETUP ---
     const scene = new THREE.Scene();
@@ -207,6 +381,84 @@ export default function Scene3D() {
     leftWall.position.set(0, room.height / 2, room.length / 2);
     scene.add(leftWall);
     
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      
+      if (controlsRef.current) {
+        controlsRef.current.update();
+      }
+      
+      renderer.render(scene, camera);
+    };
+    
+    animate();
+    
+    // Handle window resize
+    const handleResize = () => {
+      if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
+      
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+      
+      cameraRef.current.aspect = width / height;
+      cameraRef.current.updateProjectionMatrix();
+      rendererRef.current.setSize(width, height);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup function
+    return () => {
+      console.log("Cleaning up Scene3D");
+      
+      // Reset drag state
+      isDraggingRef.current = false;
+      draggedObjectRef.current = null;
+      draggedFurnitureIdRef.current = null;
+      
+      // Clean up event listeners
+      window.removeEventListener('resize', handleResize);
+      
+      // Remove renderer from DOM if it exists
+      if (rendererRef.current && rendererRef.current.domElement.parentNode) {
+        rendererRef.current.domElement.parentNode.removeChild(rendererRef.current.domElement);
+      }
+      
+      // Dispose of all geometries and materials
+      if (sceneRef.current) {
+        sceneRef.current.traverse((object) => {
+          if (object instanceof THREE.Mesh) {
+            if (object.geometry) object.geometry.dispose();
+            
+            if (object.material instanceof THREE.Material) {
+              object.material.dispose();
+            } else if (Array.isArray(object.material)) {
+              object.material.forEach((material: THREE.Material) => material.dispose());
+            }
+          }
+        });
+      }
+      
+      // Clear furniture map
+      furnitureObjectsRef.current.clear();
+      
+      // Dispose of renderer
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+      }
+    };
+  }, [room, backgroundImages]); // Only re-setup for room or background changes
+
+  // Setup event handlers after the scene is created
+  useEffect(() => {
+    if (!sceneRef.current || !cameraRef.current || !rendererRef.current || !controlsRef.current) return;
+    
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+    const controls = controlsRef.current;
+    
     // --- EVENT HANDLERS ---
     
     // Mouse down handler
@@ -229,18 +481,18 @@ export default function Scene3D() {
         }
         
         // Find the top-level object with furniture ID
-        let targetObject = hitObject;
-        while (targetObject.parent && !targetObject.userData.furnitureId && targetObject !== scene) {
+        let targetObject: THREE.Object3D | null = hitObject;
+        while (targetObject && targetObject.parent && !targetObject.userData.furnitureId && targetObject !== scene) {
           targetObject = targetObject.parent;
         }
         
         // If we found a furniture object
-        if (targetObject.userData.furnitureId) {
+        if (targetObject && targetObject.userData.furnitureId !== undefined) {
           // Disable orbit controls during drag
-          if (controlsRef.current) controlsRef.current.enabled = false;
+          controls.enabled = false;
           
           // Find the furniture data
-          const furnitureId = targetObject.userData.furnitureId;
+          const furnitureId = targetObject.userData.furnitureId as number;
           const clickedFurniture = furniture.find(item => item.id === furnitureId);
           
           // Select this furniture
@@ -323,7 +575,7 @@ export default function Scene3D() {
       draggedFurnitureIdRef.current = null;
       
       // Re-enable orbit controls
-      if (controlsRef.current) controlsRef.current.enabled = true;
+      controls.enabled = true;
     };
     
     // Add event listeners
@@ -332,277 +584,97 @@ export default function Scene3D() {
     renderer.domElement.addEventListener('mouseup', handleMouseUp);
     renderer.domElement.addEventListener('mouseleave', handleMouseUp);
     
-    // Animation loop
-    const animate = () => {
-      requestAnimationFrame(animate);
-      
-      if (controlsRef.current) {
-        controlsRef.current.update();
-      }
-      
-      renderer.render(scene, camera);
-    };
-    
-    animate();
-    
-    // Handle window resize
-    const handleResize = () => {
-      if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
-      
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-      
-      cameraRef.current.aspect = width / height;
-      cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(width, height);
-    };
-    
-    window.addEventListener('resize', handleResize);
-    
     // Cleanup function
     return () => {
-      isDraggingRef.current = false;
-      draggedObjectRef.current = null;
-      
-      window.removeEventListener('resize', handleResize);
-      
+      // Remove event listeners
       renderer.domElement.removeEventListener('mousedown', handleMouseDown);
       renderer.domElement.removeEventListener('mousemove', handleMouseMove);
       renderer.domElement.removeEventListener('mouseup', handleMouseUp);
       renderer.domElement.removeEventListener('mouseleave', handleMouseUp);
-      
-      scene.traverse(object => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          
-          if (object.material instanceof THREE.Material) {
-            object.material.dispose();
-          } else if (Array.isArray(object.material)) {
-            object.material.forEach(material => material.dispose());
-          }
-        }
-      });
-      
-      furnitureObjectsRef.current.clear();
-      
-      if (renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
-      }
-      
-      renderer.dispose();
     };
-  }, [room, backgroundImages]); // Only recreate when room or backgrounds change
+  }, [furniture, selectFurniture, updateFurniture, room]); // Re-setup when furniture or handlers change
 
-  // Function to create a 3D object from furniture data
-  const createFurnitureObject = async (item: Furniture): Promise<THREE.Object3D | null> => {
-    if (!item.position) return null;
-    
-    if (item.modelId) {
-      // This is a 3D model
-      const model = await getFurnitureModel(item.modelId);
-      if (!model) return null;
-      
-      // Choose loader based on format
-      if (model.format === 'glb' || model.format === 'gltf') {
-        const loader = new GLTFLoader();
-        try {
-          const gltf = await new Promise<any>((resolve, reject) => {
-            loader.load(model.url, resolve, undefined, reject);
-          });
-          
-          const object = gltf.scene;
-          
-          // Scale to match furniture dimensions
-          const bbox = new THREE.Box3().setFromObject(object);
-          const size = new THREE.Vector3();
-          bbox.getSize(size);
-          
-          const scaleX = item.width / size.x;
-          const scaleY = item.height / size.y;
-          const scaleZ = item.depth / size.z;
-          
-          object.scale.set(scaleX, scaleY, scaleZ);
-          
-          // Add shadows and highlight if selected
-          object.traverse(child => {
-            if (child instanceof THREE.Mesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-              
-              // Apply material
-              child.material = new THREE.MeshStandardMaterial({
-                color: item.color,
-                emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
-                emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
-              });
-            }
-          });
-          
-          // Position
-          const y = -bbox.min.y * scaleY; // Position bottom at floor
-          object.position.set(item.position.x, y, item.position.z);
-          
-          // Rotation
-          if (item.rotation) {
-            object.rotation.y = item.rotation;
-          }
-          
-          // Store furniture ID
-          object.userData.furnitureId = item.id;
-          
-          return object;
-        } catch (error) {
-          console.error("Error loading GLTF model:", error);
-          return null;
-        }
-      } else if (model.format === 'obj') {
-        const loader = new OBJLoader();
-        try {
-          const object = await new Promise<THREE.Group>((resolve, reject) => {
-            loader.load(model.url, resolve, undefined, reject);
-          });
-          
-          // Scale to match furniture dimensions
-          const bbox = new THREE.Box3().setFromObject(object);
-          const size = new THREE.Vector3();
-          bbox.getSize(size);
-          
-          const scaleX = item.width / size.x;
-          const scaleY = item.height / size.y;
-          const scaleZ = item.depth / size.z;
-          
-          object.scale.set(scaleX, scaleY, scaleZ);
-          
-          // Add shadows and highlight if selected
-          object.traverse(child => {
-            if (child instanceof THREE.Mesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-              
-              // Apply material
-              child.material = new THREE.MeshStandardMaterial({
-                color: item.color,
-                emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
-                emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
-              });
-            }
-          });
-          
-          // Position
-          const y = -bbox.min.y * scaleY; // Position bottom at floor
-          object.position.set(item.position.x, y, item.position.z);
-          
-          // Rotation
-          if (item.rotation) {
-            object.rotation.y = item.rotation;
-          }
-          
-          // Store furniture ID
-          object.userData.furnitureId = item.id;
-          
-          return object;
-        } catch (error) {
-          console.error("Error loading OBJ model:", error);
-          return null;
-        }
-      }
+  // Update furniture objects whenever the furniture list changes
+  useEffect(() => {
+    // Only run if the scene is set up
+    if (sceneRef.current) {
+      updateFurnitureObjects();
     }
-    
-    // Fall back to basic box
-    const geometry = new THREE.BoxGeometry(item.width, item.height, item.depth);
-    const material = new THREE.MeshStandardMaterial({
-      color: item.color,
-      emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
-      emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
-    });
-    
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    
-    // Position center of box at floor level + half height
-    mesh.position.set(
-      item.position.x,
-      item.height / 2,
-      item.position.z
-    );
-    
-    // Rotation
-    if (item.rotation) {
-      mesh.rotation.y = item.rotation;
+  }, [furniture, selectedFurniture, furnitureVersion, updateFurnitureObjects]);
+
+  // Control panel handlers
+  const handleToggleControls = () => {
+    const controlsDiv = document.querySelector('.furniture-controls');
+    if (controlsDiv) {
+      controlsDiv.classList.toggle('controls-open');
     }
-    
-    // Store furniture ID
-    mesh.userData.furnitureId = item.id;
-    
-    return mesh;
   };
 
-  // Update furniture objects when furniture changes
-  useEffect(() => {
-    const updateFurnitureObjects = async () => {
-      if (!sceneRef.current) return;
-      
-      const scene = sceneRef.current;
-      const currentIds = new Set(furniture.map(item => item.id));
-      
-      // Remove objects that are no longer in the furniture list
-      for (const [id, object] of furnitureObjectsRef.current.entries()) {
-        if (!currentIds.has(id)) {
-          scene.remove(object);
-          furnitureObjectsRef.current.delete(id);
-        }
+  const moveLeft = () => {
+    if (!selectedFurniture?.position) return;
+    updateFurniture({
+      ...selectedFurniture,
+      position: {
+        ...selectedFurniture.position,
+        x: Math.max(selectedFurniture.width / 2, selectedFurniture.position.x - 0.1)
       }
-      
-      // Add or update objects
-      for (const item of furniture) {
-        if (!item.position) continue;
-        
-        // Check if we already have this object
-        const existingObject = furnitureObjectsRef.current.get(item.id);
-        
-        if (existingObject) {
-          // Update position and rotation
-          if (item.modelId) {
-            // For models, preserve Y position
-            existingObject.position.x = item.position.x;
-            existingObject.position.z = item.position.z;
-          } else {
-            existingObject.position.set(
-              item.position.x,
-              item.height / 2,
-              item.position.z
-            );
-          }
-          
-          // Update rotation
-          if (item.rotation !== undefined) {
-            existingObject.rotation.y = item.rotation;
-          }
-          
-          // Update material for selection state
-          existingObject.traverse(child => {
-            if (child instanceof THREE.Mesh) {
-              child.material = new THREE.MeshStandardMaterial({
-                color: item.color,
-                emissive: item.id === selectedFurniture?.id ? 0x555555 : 0x000000,
-                emissiveIntensity: item.id === selectedFurniture?.id ? 0.5 : 0
-              });
-            }
-          });
-        } else {
-          // Create new object
-          const newObject = await createFurnitureObject(item);
-          if (newObject) {
-            scene.add(newObject);
-            furnitureObjectsRef.current.set(item.id, newObject);
-          }
-        }
+    });
+  };
+
+  const moveRight = () => {
+    if (!selectedFurniture?.position) return;
+    updateFurniture({
+      ...selectedFurniture,
+      position: {
+        ...selectedFurniture.position,
+        x: Math.min(room.width - selectedFurniture.width / 2, selectedFurniture.position.x + 0.1)
       }
-    };
+    });
+  };
+
+  const moveForward = () => {
+    if (!selectedFurniture?.position) return;
+    updateFurniture({
+      ...selectedFurniture,
+      position: {
+        ...selectedFurniture.position,
+        z: Math.max(selectedFurniture.depth / 2, selectedFurniture.position.z - 0.1)
+      }
+    });
+  };
+
+  const moveBackward = () => {
+    if (!selectedFurniture?.position) return;
+    updateFurniture({
+      ...selectedFurniture,
+      position: {
+        ...selectedFurniture.position,
+        z: Math.min(room.length - selectedFurniture.depth / 2, selectedFurniture.position.z + 0.1)
+      }
+    });
+  };
+
+  const rotate = () => {
+    if (!selectedFurniture) return;
+    updateFurniture({
+      ...selectedFurniture,
+      rotation: (selectedFurniture.rotation || 0) + Math.PI / 4
+    });
+  };
+
+  const handleDelete = () => {
+    if (!selectedFurniture) return;
+    const idToRemove = selectedFurniture.id;
     
-    updateFurnitureObjects();
-  }, [furniture, selectedFurniture]);
+    // First clear the selection
+    selectFurniture(null);
+    
+    // Then remove the furniture item
+    removeFurniture(idToRemove);
+    
+    // Force update
+    forceRender();
+  };
 
   return (
     <div className="relative w-full h-full">
