@@ -1,7 +1,7 @@
 // app/dashboard/page.tsx
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import RoomSettings from "../../../components/RoomSettings";
 import ColorPicker from "../../../components/ColorPicker";
 import FurnitureSelector from "../../../components/FurnitureSelector";
@@ -15,13 +15,40 @@ import DesignGallery from "../../../components/DesignGallery";
 import RoomBackgrounds from "../../../components/RoomBackgrounds";
 import ModelUploader from "../../../components/ModelUploader";
 import ModelLibrary from "../../../components/ModelLibrary";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { useRouter } from "next/navigation";
+import { app } from "../services/firebase/config";
+import { UserCircle } from "lucide-react";
+import { Menu } from "@headlessui/react";
+import { logout } from "../services/firebase/Logout";
 
 export default function Dashboard() {
+  const router = useRouter();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
   const [view, setView] = useState<"2d" | "3d">("2d");
   const [activeTab, setActiveTab] = useState("room");
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const canvas2DRef = useRef<Canvas2DHandle>(null);
   const [viewChanged, setViewChanged] = useState(false);
+
+  useEffect(() => {
+    const auth = getAuth(app);
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user || !user.email) {
+        router.replace("/auth");
+      } else {
+        setUserEmail(user.email);
+      }
+      setAuthChecked(true); // Mark auth check complete
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  if (!authChecked) return null;
 
   const captureScreenshot = () => {
     // If we're in 2D view, capture from Canvas2D
@@ -52,9 +79,28 @@ export default function Dashboard() {
             </button>
           </div>
           <div className="ml-auto flex items-center space-x-4">
-            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-              <span className="text-indigo-800 font-medium">DS</span>
-            </div>
+            <Menu as="div" className="relative">
+              <Menu.Button className="flex items-center space-x-2 focus:outline-none">
+                <UserCircle className="h-8 w-8 text-indigo-600" />
+              </Menu.Button>
+
+              <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                <div className="py-1">
+                  <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-200">
+                    {userEmail}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await logout();
+                      router.replace("/auth");
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </Menu.Items>
+            </Menu>
           </div>
         </div>
 

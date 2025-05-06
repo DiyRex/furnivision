@@ -1,3 +1,5 @@
+// admin@example.com
+// admin123
 'use client'
 
 import React from 'react'
@@ -7,6 +9,7 @@ import { useTheme } from '@mui/material/styles'
 import { useSignInWithEmailAndPassword } from 'react-firebase-hooks/auth'
 import { auth } from '@/app/services/firebase/config'
 import { useRouter } from 'next/navigation'
+import ClientOnly from '../../../components/ClientOnly'
 
 const AuthPage = () => {
   const theme = useTheme()
@@ -61,6 +64,7 @@ const AuthPage = () => {
   const providers = [{ id: 'credentials', name: 'Credentials' }]
 
   return (
+  <ClientOnly>
     <AppProvider branding={BRANDING} theme={theme}>
       <SignInPage
         signIn={signIn}
@@ -79,6 +83,7 @@ const AuthPage = () => {
         }}
       />
     </AppProvider>
+  </ClientOnly>
   )
 }
 
