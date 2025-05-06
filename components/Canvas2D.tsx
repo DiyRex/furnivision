@@ -27,17 +27,21 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
     updateFurniture,
     backgroundImages,
     furnitureModels,
+    getFurnitureModel,
   } = useDesign();
 
   // State to track dragging and zooming
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartY, setDragStartY] = useState(0);
-  const [zoomLevel, setZoomLevel] = useState(1.2); // Start with larger zoom
-  const draggedFurnitureRef = useRef<Furniture | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(2); // Start with larger zoom
 
   // Force re-render on view change
   const [forceRender, setForceRender] = useState(0);
+
+  // Cache for model front view images
+  const [frontViewCache, setFrontViewCache] = useState<Map<string, HTMLImageElement>>(new Map());
+  const [frontViewsLoaded, setFrontViewsLoaded] = useState(false);
 
   // Expose the captureImage method to parent components
   useImperativeHandle(ref, () => ({
@@ -52,7 +56,53 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
   // Actual scale after zoom
   const scale = baseScale * zoomLevel;
 
-  // Force a render when component mounts
+  // Preload front view images for 3D models
+  useEffect(() => {
+    const loadFrontViews = async () => {
+      const newCache = new Map<string, HTMLImageElement>();
+      const modelPromises: Promise<void>[] = [];
+
+      // First, check if any furniture item has a modelId
+      const modelIds = new Set<string>();
+      furniture.forEach(item => {
+        if (item.modelId) {
+          modelIds.add(item.modelId);
+        }
+      });
+
+      // For each unique modelId, load the front view
+      modelIds.forEach(modelId => {
+        const promise = (async () => {
+          try {
+            const model = await getFurnitureModel(modelId);
+            if (model && model.frontView) {
+              // Create and load an image
+              const img = new Image();
+              await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = reject;
+                img.src = model.frontView || '';
+              });
+              newCache.set(modelId, img);
+            }
+          } catch (error) {
+            console.error(`Failed to load front view for model ${modelId}:`, error);
+          }
+        })();
+        modelPromises.push(promise);
+      });
+
+      // Wait for all images to load
+      await Promise.all(modelPromises);
+      
+      setFrontViewCache(newCache);
+      setFrontViewsLoaded(true);
+    };
+
+    loadFrontViews();
+  }, [furniture, getFurnitureModel]);
+
+  // Force a render when component mounts or when view changes
   useEffect(() => {
     // Force immediate render
     setForceRender(prev => prev + 1);
@@ -62,12 +112,7 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
       setForceRender(prev => prev + 1);
     }, 100);
     
-    return () => {
-      clearTimeout(timer);
-      // Clean up dragging state when unmounting
-      setIsDragging(false);
-      draggedFurnitureRef.current = null;
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   // Handle zoom in
@@ -78,6 +123,70 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
   // Handle zoom out
   const handleZoomOut = () => {
     setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+  };
+
+  // Function to generate fallback outline for various furniture types
+  const generateFurnitureOutline = (item: Furniture, ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) => {
+    switch(item.type) {
+      case 'chair':
+        // Draw chair outline
+        ctx.beginPath();
+        // Chair back
+        ctx.moveTo(x - width/4, y);
+        ctx.lineTo(x + width/4, y);
+        ctx.lineTo(x + width/4, y + height * 0.6);
+        ctx.lineTo(x - width/4, y + height * 0.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Chair seat
+        ctx.beginPath();
+        ctx.moveTo(x - width/2, y + height * 0.6);
+        ctx.lineTo(x + width/2, y + height * 0.6);
+        ctx.lineTo(x + width/2, y + height * 0.7);
+        ctx.lineTo(x - width/2, y + height * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Chair legs
+        ctx.beginPath();
+        // Front left leg
+        ctx.moveTo(x - width/3, y + height * 0.7);
+        ctx.lineTo(x - width/3, y + height);
+        // Front right leg
+        ctx.moveTo(x + width/3, y + height * 0.7);
+        ctx.lineTo(x + width/3, y + height);
+        ctx.stroke();
+        break;
+        
+      case 'table':
+        // Draw table outline
+        // Table top
+        ctx.beginPath();
+        ctx.rect(x - width/2, y, width, height * 0.1);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Table legs
+        ctx.beginPath();
+        // Left leg
+        ctx.moveTo(x - width/3, y + height * 0.1);
+        ctx.lineTo(x - width/3, y + height);
+        // Right leg
+        ctx.moveTo(x + width/3, y + height * 0.1);
+        ctx.lineTo(x + width/3, y + height);
+        ctx.stroke();
+        break;
+        
+      default:
+        // Default fallback - draw a simple box
+        ctx.beginPath();
+        ctx.rect(x - width/2, y, width, height);
+        ctx.fill();
+        ctx.stroke();
+    }
   };
 
   // Render the canvas with a front-facing view (wall view)
@@ -197,80 +306,94 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
         // In front view, x is horizontal position
         const x = offsetX + item.position.x * scale;
         
-        // Calculate y position to be at the bottom of the room
-        const y = offsetY + room.height * scale - item.height * scale;
-        
-        // Calculate width and depth (in front view, depth appears as width proportion)
+        // Calculate display width and height
         const displayWidth = item.width * scale;
         const displayHeight = item.height * scale;
         
-        // Perspective effect based on z position (distance from wall)
-        const depthFactor = 1 - (item.position.z / room.length * 0.5);
+        // Perspective effect based on z position (distance from wall) - only for shadow
+        const depthFactor = 1 - (item.position.z / room.length * 0.3); // Reduced perspective effect
         
         // Draw item shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         ctx.beginPath();
         ctx.ellipse(
           x, 
           offsetY + room.height * scale, 
           displayWidth/2 * depthFactor, 
-          displayWidth/4 * depthFactor, 
+          displayWidth/5 * depthFactor, 
           0, 0, Math.PI * 2
         );
         ctx.fill();
         
-        // Check if this is a 3D model
-        if (item.modelId) {
-          // Draw a more detailed representation for 3D models
-          ctx.fillStyle = item.color;
-          
-          // Draw base shape
-          ctx.fillRect(
-            x - (displayWidth/2), 
-            y,
-            displayWidth * depthFactor, 
-            displayHeight
-          );
-          
-          // Add some detail lines to indicate it's a 3D model
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 0.5;
-          
-          // Draw some internal lines to suggest 3D structure
-          ctx.beginPath();
-          ctx.moveTo(x - displayWidth/4, y);
-          ctx.lineTo(x - displayWidth/4, y + displayHeight);
-          ctx.stroke();
-          
-          ctx.beginPath();
-          ctx.moveTo(x + displayWidth/4, y);
-          ctx.lineTo(x + displayWidth/4, y + displayHeight);
-          ctx.stroke();
-          
-          ctx.beginPath();
-          ctx.moveTo(x - (displayWidth/2), y + displayHeight/2);
-          ctx.lineTo(x + (displayWidth/2) * depthFactor, y + displayHeight/2);
-          ctx.stroke();
-        } else {
-          // Draw regular furniture as before
-          ctx.fillStyle = item.color;
-          ctx.fillRect(
-            x - (displayWidth/2), 
-            y,
-            displayWidth * depthFactor, 
-            displayHeight
-          );
-        }
+        // Calculate y position to be at the bottom of the room
+        const y = offsetY + room.height * scale - displayHeight;
         
-        // Draw outline (highlight if selected)
-        ctx.strokeStyle = item.id === selectedFurniture?.id ? '#3B82F6' : '#000';
-        ctx.lineWidth = item.id === selectedFurniture?.id ? 2 : 1;
-        ctx.strokeRect(
-          x - (displayWidth/2), 
-          y,
-          displayWidth * depthFactor, 
-          displayHeight
-        );
+        // Check if this item is selected
+        const isSelected = item.id === selectedFurniture?.id;
+        
+        // Check if this is a 3D model with a front view image
+        if (item.modelId && frontViewCache.has(item.modelId)) {
+          const frontViewImg = frontViewCache.get(item.modelId);
+          if (frontViewImg) {
+            // FIXED: Use full width for the image, no scaling based on depth
+            // This ensures the model appears at the proper width
+            const imgWidth = displayWidth;
+            const imgHeight = displayHeight;
+            
+            // If selected, just draw the outline
+            if (isSelected) {
+              // Draw a thin outline - no fill
+              ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue but transparent
+              ctx.lineWidth = 1;
+              ctx.setLineDash([5, 3]); // Dashed line
+              ctx.strokeRect(x - imgWidth/2, y, imgWidth, imgHeight);
+              ctx.setLineDash([]); // Reset to solid line
+            }
+            
+            // Draw the front view image directly
+            ctx.drawImage(frontViewImg, x - imgWidth/2, y, imgWidth, imgHeight);
+            
+            // Add a '3D' indicator below the image
+            ctx.fillStyle = '#3B82F6';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('3D', x, y + imgHeight + 12);
+          }
+        } else {
+          // No front view available, use fallback outline
+          ctx.fillStyle = item.color;
+          
+          // If selected, use a different stroke style
+          if (isSelected) {
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue but transparent
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 3]); // Dashed line
+          } else {
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+          }
+          
+          // Non-3D models still use perspective for width
+          generateFurnitureOutline(
+            item, 
+            ctx, 
+            x, 
+            y, 
+            displayWidth * depthFactor, 
+            displayHeight
+          );
+          
+          // Reset line style
+          ctx.setLineDash([]);
+          
+          // Add 3D indicator if it's a 3D model
+          if (item.modelId) {
+            ctx.fillStyle = '#3B82F6';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('3D', x, y + displayHeight + 12);
+          }
+        }
         
         // Draw label
         ctx.fillStyle = '#000';
@@ -279,18 +402,8 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
         ctx.fillText(
           item.name,
           x,
-          y + displayHeight / 2
+          y - 5
         );
-        
-        // If it's a 3D model, add a small indicator
-        if (item.modelId) {
-          ctx.fillStyle = '#3B82F6';
-          ctx.fillText(
-            '3D',
-            x,
-            y + displayHeight / 2 + 16
-          );
-        }
         
         ctx.restore();
       });
@@ -299,7 +412,17 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
     // Trigger room rendering
     renderRoom();
 
-  }, [room, furniture, selectedFurniture, backgroundImages, scale, zoomLevel, forceRender, furnitureModels]);
+  }, [
+    room, 
+    furniture, 
+    selectedFurniture, 
+    backgroundImages, 
+    scale, 
+    zoomLevel, 
+    forceRender, 
+    frontViewCache, 
+    frontViewsLoaded
+  ]);
 
   // Handle canvas mouse down (start dragging)
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -323,21 +446,18 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
       const itemX = offsetX + item.position.x * scale;
       const itemY = offsetY + room.height * scale - item.height * scale;
       
-      // Calculate display size with perspective
-      const depthFactor = 1 - (item.position.z / room.length * 0.5);
-      const displayWidth = item.width * scale * depthFactor;
+      // Use full width for 3D models with front view
+      const displayWidth = item.width * scale;
       const displayHeight = item.height * scale;
       
-      // Check if click is within item bounds
+      // Check if click is within item bounds - use full width for better click detection
       if (
         x >= itemX - displayWidth/2 && 
         x <= itemX + displayWidth/2 &&
         y >= itemY && 
         y <= itemY + displayHeight
       ) {
-        // Store the selected furniture in both state and ref
         selectFurniture(item);
-        draggedFurnitureRef.current = item;
         setIsDragging(true);
         setDragStartX(x);
         setDragStartY(y);
@@ -347,12 +467,11 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
 
     // If no furniture was clicked, deselect
     selectFurniture(null);
-    draggedFurnitureRef.current = null;
   };
 
   // Handle canvas mouse move (drag furniture)
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !draggedFurnitureRef.current || !canvasRef.current) return;
+    if (!isDragging || !selectedFurniture || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -365,27 +484,23 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
     const deltaXMeters = deltaX / scale;
 
     // Update position (only X in wall view)
-    if (draggedFurnitureRef.current.position) {
+    if (selectedFurniture.position) {
       const newPosition = {
-        ...draggedFurnitureRef.current.position,
+        ...selectedFurniture.position,
         x: Math.max(
-          draggedFurnitureRef.current.width / 2,
+          selectedFurniture.width / 2,
           Math.min(
-            room.width - draggedFurnitureRef.current.width / 2,
-            draggedFurnitureRef.current.position.x + deltaXMeters
+            room.width - selectedFurniture.width / 2,
+            selectedFurniture.position.x + deltaXMeters
           )
         ),
       };
 
       // Update the furniture
-      const updatedFurniture = {
-        ...draggedFurnitureRef.current,
+      updateFurniture({
+        ...selectedFurniture,
         position: newPosition,
-      };
-      
-      // Update both the context and our local ref
-      updateFurniture(updatedFurniture);
-      draggedFurnitureRef.current = updatedFurniture;
+      });
     }
 
     // Reset drag start position
@@ -396,7 +511,6 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
   // Handle canvas mouse up (end dragging)
   const handleMouseUp = () => {
     setIsDragging(false);
-    draggedFurnitureRef.current = null;
   };
 
   // Resize canvas when window resizes or first mounting
@@ -440,7 +554,7 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
       <FurnitureControls />
       
       {/* Zoom controls */}
-      <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-md p-2 flex space-x-2">
+      <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-md p-2 flex space-x-2 mb-12">
         <button 
           onClick={handleZoomIn}
           className="p-2 hover:bg-gray-100 rounded"
@@ -469,13 +583,6 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
           </svg>
         </button>
       </div>
-      
-      {/* Instructions tooltip when nothing is selected */}
-      {!selectedFurniture && (
-        <div className="absolute bottom-4 left-4 bg-white bg-opacity-70 rounded-lg p-3 text-sm">
-          Click on furniture to select and drag it, or use controls to move precisely
-        </div>
-      )}
     </div>
   );
 });
@@ -483,16 +590,3 @@ const Canvas2D = forwardRef<Canvas2DHandle, {}>((props, ref) => {
 Canvas2D.displayName = "Canvas2D";
 
 export default Canvas2D;
-
-
-
-
-
-
-
-
-
-
-{/* <div className="absolute bottom-20 left-4 bg-slate-500 rounded shadow-lg p-4 z-10">
-        <FurnitureControls />
-      </div> */}

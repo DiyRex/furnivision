@@ -66,4 +66,5 @@ export interface FurnitureModel {
   format: string;
   dimensions: ModelDimensions;
   thumbnail?: string;
+  frontView?: string;
 }
