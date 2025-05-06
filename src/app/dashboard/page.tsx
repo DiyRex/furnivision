@@ -111,7 +111,7 @@ export default function Dashboard() {
               <nav className="flex -mb-px" aria-label="Tabs">
                 <button
                   onClick={() => setActiveTab("room")}
-                  className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "room"
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -119,16 +119,7 @@ export default function Dashboard() {
                 >
                   Room
                 </button>
-                <button
-                  onClick={() => setActiveTab("furniture")}
-                  className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
-                    activeTab === "furniture"
-                      ? "border-indigo-500 text-indigo-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  Furniture
-                </button>
+  
                 <button
                   onClick={() => setActiveTab("models")}
                   className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
@@ -137,11 +128,11 @@ export default function Dashboard() {
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }`}
                 >
-                  3D Models
+                  Furnitures
                 </button>
                 <button
                   onClick={() => setActiveTab("backgrounds")}
-                  className={`w-1/5 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "backgrounds"
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -151,7 +142,7 @@ export default function Dashboard() {
                 </button>
                 <button
                   onClick={() => setActiveTab("colors")}
-                  className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  className={`w-1/4 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "colors"
                       ? "border-indigo-500 text-indigo-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -170,9 +161,8 @@ export default function Dashboard() {
               {activeTab === "colors" && <ColorPicker />}
               {activeTab === "models" && (
                 <div className="space-y-6">
+                  <div className="border-t my-"></div>
                   <ModelUploader />
-                  <div className="border-t my-4"></div>
-                  <ModelLibrary />
                 </div>
               )}
             </div>
