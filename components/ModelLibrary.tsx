@@ -24,7 +24,7 @@ export default function ModelLibrary() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">3D Model Library</h3>
+      <h3 className="text-lg font-medium text-gray-900">Furniture Library</h3>
       
       {/* Model type filter */}
       <div className="flex space-x-2 pb-2 border-b overflow-x-auto">

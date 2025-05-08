@@ -21,6 +21,7 @@ import { app } from "../services/firebase/config";
 import { UserCircle } from "lucide-react";
 import { Menu } from "@headlessui/react";
 import { logout } from "../services/firebase/Logout";
+import Link from "next/link";
 
 export default function Dashboard() {
   const [view, setView] = useState<"2d" | "3d">("2d");
@@ -69,7 +70,9 @@ export default function Dashboard() {
       <div className="flex h-screen flex-col">
         {/* Navbar */}
         <div className="bg-white shadow-sm h-16 flex items-center px-6">
+          <Link href={"/dashboard"}>
           <h1 className="text-xl font-bold text-indigo-600">FurniVision</h1>
+          </Link>
           <div className="ml-8 flex space-x-4">
             <button
               onClick={() => setActiveTab("gallery")}
@@ -133,7 +136,7 @@ export default function Dashboard() {
                 >
                   Furniture
                 </button>
-                <button
+                {/* <button
                   onClick={() => setActiveTab("backgrounds")}
                   className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${
                     activeTab === "backgrounds"
@@ -142,7 +145,7 @@ export default function Dashboard() {
                   }`}
                 >
                   Images
-                </button>
+                </button> */}
                 <button
                   onClick={() => setActiveTab("colors")}
                   className={`w-1/3 py-4 px-1 text-center border-b-2 font-medium text-sm ${

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useDesign } from '../lib/DesignContext';
+import RoomBackgrounds from './RoomBackgrounds';
 
 export default function RoomSettings() {
   const { room, updateRoom } = useDesign();
@@ -102,7 +103,7 @@ export default function RoomSettings() {
         </div>
       </div>
 
-      <h3 className="text-lg font-medium text-gray-900">Room Shape</h3>
+      {/* <h3 className="text-lg font-medium text-gray-900">Room Shape</h3>
       <div className="grid grid-cols-2 gap-4">
         <button 
           className={`p-4 border rounded-md flex items-center justify-center ${
@@ -126,7 +127,8 @@ export default function RoomSettings() {
           </div>
           <span className="ml-2 text-sm">L-Shaped</span>
         </button>
-      </div>
+      </div> */}
+      <RoomBackgrounds/>
     </div>
   );
 }

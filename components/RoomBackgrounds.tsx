@@ -51,7 +51,40 @@ export default function RoomBackgrounds() {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-lg font-medium text-gray-900">Room Backgrounds</h3>
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium text-gray-900">Room Backgrounds</h3>
+
+        {/* Button with embedded file upload logic */}
+        <label
+          htmlFor="background-upload"
+          className="relative flex items-center px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors cursor-pointer overflow-hidden"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5 mr-1"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+              clipRule="evenodd"
+            />
+          </svg>
+          {isUploading ? "Uploading..." : "Add"}
+
+          {/* Invisible file input layered into the button */}
+          <input
+            id="background-upload"
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            className="absolute inset-0 opacity-0 cursor-pointer"
+            onChange={handleFileUpload}
+            disabled={isUploading}
+          />
+        </label>
+      </div>
 
       <div className="space-y-3">
         <button
@@ -145,7 +178,7 @@ export default function RoomBackgrounds() {
         ))}
       </div>
 
-      <div className="pt-4">
+      {/* <div className="pt-4">
         <label
           htmlFor="background-upload"
           className="flex justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
@@ -161,7 +194,7 @@ export default function RoomBackgrounds() {
             disabled={isUploading}
           />
         </label>
-      </div>
+      </div> */}
     </div>
   );
 }

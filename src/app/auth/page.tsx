@@ -52,13 +52,9 @@ const AuthPage = () => {
 
   const BRANDING = {
     logo: (
-      <img
-        src="https://mui.com/static/logo.svg"
-        alt="MUI logo"
-        style={{ height: 24 }}
-      />
+      <h1 className="text-3xl font-bold text-indigo-600">FurniVision</h1>
     ),
-    title: 'FurniVision',
+    title: '',
   }
 
   const providers = [{ id: 'credentials', name: 'Credentials' }]
@@ -66,22 +62,34 @@ const AuthPage = () => {
   return (
   <ClientOnly>
     <AppProvider branding={BRANDING} theme={theme}>
-      <SignInPage
-        signIn={signIn}
-        providers={providers}
-        slotProps={{
-          emailField: {
-            autoFocus: true,
-            label: 'Email',
-          },
-          passwordField: {
-            label: 'Password',
-          },
-          form: {
-            noValidate: true,
-          },
-        }}
-      />
+    <SignInPage
+  signIn={signIn}
+  providers={providers}
+  slotProps={{
+    emailField: {
+      autoFocus: true,
+      label: 'Email',
+      sx: { mb: 2, }, // margin bottom
+    },
+    passwordField: {
+      label: 'Password',
+      sx: { mb: 4, mt: 4 },
+    },
+    submitButton: {
+      sx: {
+        mt: 4,
+        fontSize: '0.875rem', // small text
+        py: 1,                // vertical padding
+        px: 2,                // horizontal padding
+        textTransform: 'none', // avoid uppercase if any
+      },
+    },
+    form: {
+      noValidate: true,
+    },
+  }}
+/>
+
     </AppProvider>
   </ClientOnly>
   )
